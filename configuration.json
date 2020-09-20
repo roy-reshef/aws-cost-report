@@ -1,0 +1,22 @@
+{
+  "report_title": "AWS Costs Report",
+  "accounts" : {},
+  "periods" : {
+    "monthly_report_months_back": 6,
+    "services_report_days_back": 30,
+    "daily_report_days_back": 30
+  },
+  "filtered_services": [
+    "Tax",
+    "AWS Elemental MediaStore",
+    "Amazon QuickSight",
+    "AWS Data Pipeline",
+    "AWS Cost Explorer",
+    "AWS Key Management Service"
+  ],
+  "filtered_costs": [
+    "Credit",
+    "Refund",
+    "Upfront"
+  ]
+}
