@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from datetime import datetime
 from enum import unique, Enum
 from functools import reduce
 from typing import List
@@ -13,7 +14,8 @@ from plotly.offline import plot
 from costreport import consts
 from costreport.consts import OUTPUT_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME
 from costreport.cost_client import AwsCostClient
-from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month
+from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, get_time, \
+    format_datetime, TIME_FORMAT
 from costreport.intermediate_data import IntermediateData
 from costreport.output_manager import OutputManager
 
@@ -138,7 +140,8 @@ class LayoutManager(object):
 
 class CostReporter:
 
-    def __init__(self, config, cost_client: AwsCostClient):
+    def __init__(self, exec_time: datetime, config, cost_client: AwsCostClient):
+        self.exec_time = exec_time
         self.config = config
         self.cost_client = cost_client
 
@@ -149,6 +152,15 @@ class CostReporter:
 
         if not os.path.exists(OUTPUT_DIR):
             os.makedirs(OUTPUT_DIR)
+
+    def generate(self):
+        self.generate_current_date()
+        self.generate_current_month_forecast()
+        self.generate_last_stable_accounts_cost_report()
+        self.generate_daily_report()
+        self.generate_monthly_report()
+        self.generate_services_report()
+        self.generate_tag_reports()
 
     def create_item_definition(self,
                                cost_results,
@@ -194,11 +206,11 @@ class CostReporter:
 
     def generate_current_date(self):
         item_name = consts.ReportItemName.CURRENT_DATE.value
-        today = get_today().isoformat()
-        self._intermediate_results.add(item_name, [today])
+        exec_time_str = format_datetime(self.exec_time, TIME_FORMAT)
+        self._intermediate_results.add(item_name, [exec_time_str])
         self.item_defs.append(ItemDefinition(item_name,
                                              ItemType.VALUE,
-                                             [today]))
+                                             [exec_time_str]))
 
     def generate_monthly_report(self):
         item_name = consts.ReportItemName.MONTHLY_COST.value
@@ -346,19 +358,13 @@ if __name__ == '__main__':
     if not validate_env_variables():
         exit(1)
 
+    exec_time = get_time()
     config = _load_config()
-    reporter = CostReporter(config, AwsCostClient(config))
-
-    reporter.generate_current_date()
-    reporter.generate_current_month_forecast()
-    reporter.generate_last_stable_accounts_cost_report()
-    reporter.generate_daily_report()
-    reporter.generate_monthly_report()
-    reporter.generate_services_report()
-    reporter.generate_tag_reports()
+    reporter = CostReporter(exec_time, config, AwsCostClient(config))
+    reporter.generate()
 
     data_items = {'Report Title': config["report_title"]}
     report_html_str = LayoutManager(reporter.item_defs, config).layout(data_items)
 
-    output_manager = OutputManager(config)
+    output_manager = OutputManager(exec_time, config)
     output_manager.output(report_html_str)

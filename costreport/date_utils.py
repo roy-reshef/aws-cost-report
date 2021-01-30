@@ -3,6 +3,17 @@ from datetime import date
 
 from dateutil.relativedelta import relativedelta
 
+TIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+PATH_TIME_FORMAT = '%Y_%m_%d_%H_%M_%S'
+
+
+def get_time() -> datetime:
+    return datetime.datetime.now()
+
+
+def format_datetime(val: datetime, time_format: str) -> str:
+    return val.strftime(time_format)
+
 
 def get_today() -> date:
     """return today's date"""

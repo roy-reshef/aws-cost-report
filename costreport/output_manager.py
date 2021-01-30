@@ -1,15 +1,16 @@
 import logging
-from shutil import copyfile
+from datetime import datetime
 
-from costreport.consts import OUTPUT_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME
-from costreport.date_utils import get_today
+from costreport.consts import OUTPUT_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+from costreport.date_utils import format_datetime, PATH_TIME_FORMAT
 from costreport.s3_client import S3Client
 
 logger = logging.getLogger(__name__)
 
 
 class OutputManager:
-    def __init__(self, config):
+    def __init__(self, exec_time: datetime, config):
+        self.exec_time = exec_time
         self.config = config
 
     def output(self, report_html_str):
@@ -19,9 +20,8 @@ class OutputManager:
         if self.config.get('destinations') and self.config['destinations'].get('s3'):
             self._upload_to_s3(self.config['destinations']['s3'])
 
-    @staticmethod
-    def _get_report_file_name():
-        return f'cost_report_{get_today().isoformat()}.html'
+    def _get_report_file_name(self):
+        return f'cost_report_{format_datetime(self.exec_time, PATH_TIME_FORMAT)}.html'
 
     def _get_report_path(self):
         return f'{OUTPUT_DIR}/{self._get_report_file_name()}'
