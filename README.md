@@ -74,17 +74,23 @@ aws credentials environment variables (required):
   ],
   "destinations": {
     "s3": {
-      "bucket_name": "linearb-aws-cost-reports",
+      "bucket_name": "<unique bucket name>",
       "object_name": ""
     }
   },
-  "template_name": "default.html"
+  "template_name": "default.html",
+  "schedule": "*/5 * * * *"
 }
 ```
 
 ## Report Template
 Report is generated from jinja template. alternative templates can be placed in report_templates 
 directory and configured in configuration file
+
+## scheduling
+cron based report scheduling can be specified by setting 'schedule' configuration option. <br>
+for scheduling options please see [croniter](https://pypi.org/project/croniter/) documentation<br>
+<b>Note:</b> seconds interval not supported
 
 ## artifacts
 generated report file and partial reports like tag report files are generated in 'generated-reports' directory<br>

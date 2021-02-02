@@ -1,2 +1,2 @@
 #!/bin/sh
-python cost_report_generator.py
+python run.py

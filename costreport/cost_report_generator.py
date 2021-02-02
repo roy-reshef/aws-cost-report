@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import pathlib
 from datetime import datetime
 from enum import unique, Enum
 from functools import reduce
@@ -12,22 +13,18 @@ from markupsafe import Markup
 from plotly.offline import plot
 
 from costreport import consts
-from costreport.consts import OUTPUT_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME
+from costreport.consts import OUTPUT_DIR
 from costreport.cost_client import AwsCostClient
-from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, get_time, \
-    format_datetime, TIME_FORMAT
+from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, format_datetime, \
+    TIME_FORMAT
 from costreport.intermediate_data import IntermediateData
-from costreport.output_manager import OutputManager
 
 jinja_env = Environment(
-    loader=FileSystemLoader(f'{os.getcwd()}/report_templates'),
+    loader=FileSystemLoader(f'{pathlib.Path(__file__).parent.absolute()}/../report_templates'),
     autoescape=select_autoescape(['html'])
 )
 
 logger = logging.getLogger(__name__)
-logger.setLevel(consts.LOGGING_LEVEL)
-log_handler = logging.StreamHandler()
-logger.addHandler(log_handler)
 
 
 @unique
@@ -39,7 +36,7 @@ class ItemType(Enum):
 
 
 def _load_config():
-    with open('configuration.json', 'r') as c:
+    with open('../configuration.json', 'r') as c:
         configuration = c.read()
 
     return json.loads(configuration)
@@ -108,6 +105,7 @@ class LayoutManager(object):
     def __init__(self, items_defs: List[ItemDefinition], config):
         self.items_defs = items_defs
         self.plotter: ChartPlotter = ChartPlotter()
+        self.config = config
 
     def layout(self, data_items=None) -> str:
         """
@@ -118,7 +116,7 @@ class LayoutManager(object):
         if not data_items:
             data_items = {}
 
-        template = jinja_env.get_template(config.get('template_name', 'default.html'))
+        template = jinja_env.get_template(self.config.get('template_name', 'default.html'))
         logger.info(f'using {template} template file')
 
         for item_def in self.items_defs:
@@ -330,41 +328,3 @@ class CostReporter:
         generate additional data items based on existing data items.
         :return: 
         """
-
-
-def validate_env_variables():
-    """
-    returns boolean value indicating validity of configuration
-    :return:
-    """
-    valid = True
-
-    if not AWS_ACCESS_KEY_ID:
-        logger.error('AWS_ACCESS_KEY_ID environment variable is required for execution')
-        valid = False
-
-    if not AWS_SECRET_ACCESS_KEY:
-        logger.error('AWS_SECRET_ACCESS_KEY environment variable is required for execution')
-        valid = False
-
-    if not REGION_NAME:
-        logger.error('REGION_NAME environment variable is required for operation')
-        valid = False
-
-    return valid
-
-
-if __name__ == '__main__':
-    if not validate_env_variables():
-        exit(1)
-
-    exec_time = get_time()
-    config = _load_config()
-    reporter = CostReporter(exec_time, config, AwsCostClient(config))
-    reporter.generate()
-
-    data_items = {'Report Title': config["report_title"]}
-    report_html_str = LayoutManager(reporter.item_defs, config).layout(data_items)
-
-    output_manager = OutputManager(exec_time, config)
-    output_manager.output(report_html_str)
