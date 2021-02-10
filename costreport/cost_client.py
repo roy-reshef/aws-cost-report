@@ -1,19 +1,20 @@
 import json
 import logging
+import os
 import subprocess
 from datetime import date
-import os
 
 import boto3
 
+from costreport.app_config import AppConfig
 from costreport.consts import CACHE_RESULTS_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME, OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 
 
 class RawDateHandler:
-    def __init__(self, config):
-        self.enabled = config.get('use_cache', False)
+    def __init__(self, config: AppConfig):
+        self.enabled = config.use_cache
         if self.enabled:
             if not os.path.exists(CACHE_RESULTS_DIR):
                 os.makedirs(CACHE_RESULTS_DIR)
@@ -37,7 +38,7 @@ class RawDateHandler:
 
 class AwsCostClient:
 
-    def __init__(self, config):
+    def __init__(self, config: AppConfig):
         self.config = config
         self.raw_data = RawDateHandler(config)
         self.client = boto3.client('ce',
@@ -59,11 +60,13 @@ class AwsCostClient:
 
         if not res_data:
             logger.info("getting cost forecast from AWS")
-            costs_filter = {"Not": {"Dimensions": {"Key": "RECORD_TYPE", "Values": self.config['filtered_costs']}}}
-            cost_filter_file = f'{OUTPUT_DIR}/cost_filter.json'
 
-            with open(cost_filter_file, 'w') as f:
-                json.dump(costs_filter, f)
+            if self.config.filtered_costs:
+                costs_filter = {"Not": {"Dimensions": {"Key": "RECORD_TYPE", "Values": self.config.filtered_costs}}}
+                cost_filter_file = f'{OUTPUT_DIR}/cost_filter.json'
+
+                with open(cost_filter_file, 'w') as f:
+                    json.dump(costs_filter, f)
 
             p_env = os.environ.copy()
             p_env['AWS_ACCESS_KEY_ID'] = AWS_ACCESS_KEY_ID
@@ -73,14 +76,19 @@ class AwsCostClient:
             params = ['aws', 'ce', 'get-cost-forecast',
                       '--metric', 'UNBLENDED_COST',
                       '--time-period', f'Start={start_date},End={end_date}',
-                      '--granularity=MONTHLY',
-                      '--filter', f'file://{cost_filter_file}']
+                      '--granularity=MONTHLY']
+
+            if self.config.filtered_costs:
+                params.extend(['--filter', f'file://{cost_filter_file}'])
 
             result = subprocess.Popen(params,
                                       env=p_env,
                                       stdout=subprocess.PIPE).communicate()[0]
             self.raw_data.save('monthly_forecast', result.decode("utf-8"))
             res_data = json.loads(result)
+
+            if self.config.filtered_costs:
+                os.remove(cost_filter_file)
 
         return int(float(res_data['Total']['Amount']))
 
@@ -123,24 +131,38 @@ class AwsCostClient:
                 else:
                     kwargs = {}
 
-                data = self.client.get_cost_and_usage(
-                    TimePeriod={
-                        'Start': start.isoformat(),
-                        'End': end.isoformat()
-                    },
-                    Granularity=granularity,
-                    Metrics=[
-                        'UnblendedCost',
-                    ],
-                    GroupBy=groups,
-                    Filter={
-                        "Not": {
-                            "Dimensions": {
-                                "Key": "RECORD_TYPE",
-                                "Values": self.config['filtered_costs']
-                            }
-                        }},
-                    **kwargs)
+                if self.config.filtered_costs:
+                    data = self.client.get_cost_and_usage(
+                        TimePeriod={
+                            'Start': start.isoformat(),
+                            'End': end.isoformat()
+                        },
+                        Granularity=granularity,
+                        Metrics=[
+                            'UnblendedCost',
+                        ],
+                        GroupBy=groups,
+                        Filter={
+                            "Not": {
+                                "Dimensions": {
+                                    "Key": "RECORD_TYPE",
+                                    "Values": self.config.filtered_costs
+                                }
+                            }},
+                        **kwargs)
+                else:
+                    data = self.client.get_cost_and_usage(
+                        TimePeriod={
+                            'Start': start.isoformat(),
+                            'End': end.isoformat()
+                        },
+                        Granularity=granularity,
+                        Metrics=[
+                            'UnblendedCost',
+                        ],
+                        GroupBy=groups,
+                        **kwargs)
+
                 results += data['ResultsByTime']
                 token = data.get('NextPageToken')
 

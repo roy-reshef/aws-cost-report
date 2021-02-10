@@ -3,13 +3,31 @@ from typing import Dict
 from costreport.consts import ReportItemName
 
 
+class IntermediateResults:
+    pass
+
+
+class IntermediateSimpleResult(IntermediateResults):
+    def __init__(self, value):
+        self.value = value
+
+
+class IntermediateComplexResults(IntermediateResults):
+    def __init__(self, identifiers, values):
+        self.identifiers = identifiers
+        self.values = values
+
+
 class IntermediateData:
     """
-    holds intermediate data per ReportItemType
+    holds intermediate_results per ReportItemType
     """
 
     def __init__(self):
-        self.item_defs: Dict = {}
+        self.items: Dict = {}
 
-    def add(self, item: ReportItemName, values: list):
-        self.item_defs[item] = values
+    def add(self, item: ReportItemName, intermediate_results: IntermediateResults):
+        self.items[item] = intermediate_results
+
+    def get(self, item_name):
+        return self.items[item_name]

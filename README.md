@@ -5,31 +5,40 @@ AWS Costs report generation tool
 
 AWS Costs report tool which leverages AWS cost explorer API to create single page HTML report.<br>
 
-The tool provides the following data per account (linked accounts):
-* Monthly total forecast
-* Last day cost
-* Daily cost chart
-* Monthly cost chart 
-* AWS Services cost
-* Cost chart per requested tag
+## Features
+* Provides data for every linked account
+* S3 persistence 
+* Single or scheduled execution
+* Configurable time windows
+* Report data
+  - Monthly total forecast
+  - Last day cost
+  - Daily cost chart
+  - Monthly cost chart 
+  - Services cost
+  - Cost chart per requested tag
 
 ## Prerequisites
 
-Python3
+Python3 for running on machine
 Docker in order to run inside container
+make tool in order to execute Makefile targets
 
 ## Execution
 
-### Local
+You can execute report tool using Makefile targets or directly install / execute report tool (explained below)<br>
+Please see Makefile for available targets (options)
+
+### Machine
 it is advisable to use [virtual environment](https://docs.python.org/3/library/venv.html)
 * execute ```pip install -r requirements.txt``` to install project requirements<br>
-* execute ```python cost_report_generator.py ```<br>
+* execute ```python run.py ```<br>
 
 in this mode reports are generated in 'generated-reports' directory
 
 ### Docker
-execute ```run.sh``` script to run report generation inside docker<br>
-reports will be available under <HOME_DIR>/generated-report
+execute ```run_in_docker.sh``` script to build and run report generation inside docker<br>
+reports will be available under <USER_HOME_DIR>/cost_reports
 
 
 ## ENV variables
@@ -41,6 +50,7 @@ aws credentials environment variables (required):
 
 * LOGGING_LEVEL - optional. defaults to INFO
 
+## Configuration
 ### Example Configuration File
 ```
 {
@@ -79,22 +89,27 @@ aws credentials environment variables (required):
     }
   },
   "template_name": "default.html",
-  "schedule": "*/5 * * * *"
+  "schedule": "*/5 * * * *",
+  "use_cache": true
 }
 ```
+### Configuration Options
+* **report_title** - as the name suggests :-)
+* **accounts** -
+* **periods** -
+* **filtered_services** -
+* **filtered_costs** -
+* **resource_tags** -
+* **destinations** -
+* **template_name** -
+* **schedule** -
+* **use_cache** -
 
 ## Report Template
-Report is generated from jinja template. alternative templates can be placed in report_templates 
+Report is generated from jinja template. alternative templates can be placed in report_templates
 directory and configured in configuration file
 
 ## scheduling
 cron based report scheduling can be specified by setting 'schedule' configuration option. <br>
 for scheduling options please see [croniter](https://pypi.org/project/croniter/) documentation<br>
 <b>Note:</b> seconds interval not supported
-
-## artifacts
-generated report file and partial reports like tag report files are generated in 'generated-reports' directory<br>
-generated report is suffixed with execution date <br>
-report can optionally be uploaded to S3 by providing s3 destination configuration (see example) 
-
-

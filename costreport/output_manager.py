@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+from costreport.app_config import AppConfig, ReportDestination, S3Destination
 from costreport.consts import OUTPUT_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
 from costreport.date_utils import format_datetime, PATH_TIME_FORMAT
 from costreport.s3_client import S3Client
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class OutputManager:
-    def __init__(self, exec_time: datetime, config):
+    def __init__(self, exec_time: datetime, config: AppConfig):
         self.exec_time = exec_time
         self.config = config
 
@@ -17,8 +18,8 @@ class OutputManager:
         # save local file and then per configured destination
         self._save_html_report(report_html_str)
 
-        if self.config.get('destinations') and self.config['destinations'].get('s3'):
-            self._upload_to_s3(self.config['destinations']['s3'])
+        if self.config.destinations and self.config.destinations.get(ReportDestination.S3.value):
+            self._upload_to_s3(self.config.destinations[ReportDestination.S3.value])
 
     def _get_report_file_name(self):
         return f'cost_report_{format_datetime(self.exec_time, PATH_TIME_FORMAT)}.html'
@@ -33,8 +34,8 @@ class OutputManager:
         f.write(report_html_str)
         f.close()
 
-    def _upload_to_s3(self, dest_config):
-        if not dest_config.get('bucket_name'):
+    def _upload_to_s3(self, dest_config: S3Destination):
+        if not dest_config.bucket_name:
             logger.error('s3 destination bucket name is not specified! aborting s3 upload')
             return
 
@@ -43,5 +44,5 @@ class OutputManager:
                              aws_secret_access_key=AWS_SECRET_ACCESS_KEY)
 
         s3_client.upload_file(self._get_report_path(),
-                              dest_config.get('bucket_name'),
-                              dest_config.get('object_name'))
+                              dest_config.bucket_name,
+                              dest_config.object_name)

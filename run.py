@@ -1,6 +1,7 @@
 import json
 import logging
 
+from costreport.app_config import AppConfig
 from costreport.consts import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME
 from costreport.executors import ScheduledExecutor, SingleExecutor
 
@@ -29,20 +30,13 @@ def validate_env_variables():
     return valid
 
 
-def _load_config():
-    with open('configuration.json', 'r') as c:
-        configuration = c.read()
-
-    return json.loads(configuration)
-
-
 if __name__ == '__main__':
     if not validate_env_variables():
         exit(1)
 
-    config = _load_config()
+    config = AppConfig()
 
-    if config.get('schedule'):
+    if config.schedule:
         executor = ScheduledExecutor(config)
     else:
         executor = SingleExecutor(config)

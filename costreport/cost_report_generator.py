@@ -1,38 +1,22 @@
 import json
 import logging
 import os
-import pathlib
 from datetime import datetime
-from enum import unique, Enum
 from functools import reduce
-from typing import List
+from typing import List, Tuple, Dict
 
 import plotly.graph_objs as go
-from jinja2 import Environment, select_autoescape, FileSystemLoader
-from markupsafe import Markup
 from plotly.offline import plot
 
-from costreport import consts
-from costreport.consts import OUTPUT_DIR
+from costreport import consts, data_utils
+from costreport.app_config import AppConfig
+from costreport.consts import OUTPUT_DIR, ItemType, ReportItemName
 from costreport.cost_client import AwsCostClient
 from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, format_datetime, \
     TIME_FORMAT
-from costreport.intermediate_data import IntermediateData
-
-jinja_env = Environment(
-    loader=FileSystemLoader(f'{pathlib.Path(__file__).parent.absolute()}/../report_templates'),
-    autoescape=select_autoescape(['html'])
-)
+from costreport.intermediate_data import IntermediateData, IntermediateSimpleResult, IntermediateComplexResults
 
 logger = logging.getLogger(__name__)
-
-
-@unique
-class ItemType(Enum):
-    BAR = 'bar'
-    LINE = 'line'
-    STACK = 'stack'
-    VALUE = 'value'
 
 
 def _load_config():
@@ -100,45 +84,9 @@ class ChartPlotter:
         return div
 
 
-class LayoutManager(object):
-
-    def __init__(self, items_defs: List[ItemDefinition], config):
-        self.items_defs = items_defs
-        self.plotter: ChartPlotter = ChartPlotter()
-        self.config = config
-
-    def layout(self, data_items=None) -> str:
-        """
-        returns html string
-        :return:
-        """
-
-        if not data_items:
-            data_items = {}
-
-        template = jinja_env.get_template(self.config.get('template_name', 'default.html'))
-        logger.info(f'using {template} template file')
-
-        for item_def in self.items_defs:
-            div = self.plotter.get_div(item_def)
-
-            if item_def.chart_type != ItemType.VALUE:
-                div = Markup(div)
-
-            if item_def.group is None:
-                data_items[item_def.item_name] = div
-            else:
-                if data_items.get(item_def.group) is None:
-                    data_items[item_def.group] = {}
-
-                data_items[item_def.group][item_def.item_name] = div
-
-        return template.render(items=data_items)
-
-
 class CostReporter:
 
-    def __init__(self, exec_time: datetime, config, cost_client: AwsCostClient):
+    def __init__(self, exec_time: datetime, config: AppConfig, cost_client: AwsCostClient):
         self.exec_time = exec_time
         self.config = config
         self.cost_client = cost_client
@@ -152,13 +100,56 @@ class CostReporter:
             os.makedirs(OUTPUT_DIR)
 
     def generate(self):
+        logger.info('fetching data and creating data items')
         self.generate_current_date()
         self.generate_current_month_forecast()
-        self.generate_last_stable_accounts_cost_report()
         self.generate_daily_report()
         self.generate_monthly_report()
         self.generate_services_report()
         self.generate_tag_reports()
+
+        self.exec_post_actions()
+
+    def exec_post_actions(self):
+        logger.info('executing post actions')
+        month_totals: IntermediateComplexResults = self._intermediate_results.get(
+            ReportItemName.MONTHLY_TOTAL_COST.value)
+        last_closed_month = month_totals.values[-2]
+        forecast = self._intermediate_results.get(ReportItemName.FORECAST.value).value
+        forecast_per = data_utils.calc_percentage(forecast, last_closed_month)
+        self.item_defs.append(ItemDefinition(ReportItemName.FORECAST_PER.value,
+                                             ItemType.VALUE,
+                                             [forecast_per]))
+
+    def parse_result(self, cost_results) -> Tuple[List, Dict]:
+        """
+        returns list of identifiers and dict of values by key
+        :param cost_results:
+        :return:
+        """
+        x_values = []
+        data_series = {}
+
+        for v in cost_results:
+            start = v['TimePeriod']['Start']
+            end = v['TimePeriod']['End']
+            x_values.append(f'{start}_{end}')
+
+            if v['Groups']:
+                for i in v['Groups']:
+                    key = i['Keys'][0]
+                    # map account id to name:
+                    if self.config.accounts and key in self.config.accounts:
+                        key = self.config.accounts[key]
+
+                    if not data_series.get(key):
+                        data_series[key] = DataSeries(key, [])
+
+                    series = data_series[key]
+
+                    series.values.append(float(i['Metrics']['UnblendedCost']['Amount']))
+
+        return x_values, data_series
 
     def create_item_definition(self,
                                cost_results,
@@ -183,8 +174,8 @@ class CostReporter:
                     if key not in filtered_keys:
 
                         # map account id to name:
-                        if self.config.get('accounts') and key in self.config['accounts']:
-                            key = self.config['accounts'][key]
+                        if self.config.accounts and key in self.config.accounts:
+                            key = self.config.accounts[key]
 
                         if not data_series.get(key):
                             data_series[key] = DataSeries(key, [])
@@ -205,20 +196,21 @@ class CostReporter:
     def generate_current_date(self):
         item_name = consts.ReportItemName.CURRENT_DATE.value
         exec_time_str = format_datetime(self.exec_time, TIME_FORMAT)
-        self._intermediate_results.add(item_name, [exec_time_str])
+        self._intermediate_results.add(item_name, IntermediateSimpleResult(exec_time_str))
         self.item_defs.append(ItemDefinition(item_name,
                                              ItemType.VALUE,
                                              [exec_time_str]))
 
     def generate_monthly_report(self):
         item_name = consts.ReportItemName.MONTHLY_COST.value
-        results = self.cost_client.request_cost_and_usage(start=get_months_back(self.config['periods']
-                                                                                ['monthly_report_months_back']),
-                                                          end=get_today(),
-                                                          request_name=item_name,
-                                                          group_by_dimensions=['LINKED_ACCOUNT'])
+        results = self.cost_client.request_cost_and_usage(
+            start=get_months_back(self.config.periods.monthly_report_months_back),
+            end=get_today(),
+            request_name=item_name,
+            group_by_dimensions=['LINKED_ACCOUNT'])
 
-        self._intermediate_results.add(item_name, results)
+        identifiers, values = self.parse_result(results)
+        self._intermediate_results.add(item_name, IntermediateComplexResults(identifiers, values))
 
         chart_def: ItemDefinition = self.create_item_definition(cost_results=results,
                                                                 item_name=item_name,
@@ -230,95 +222,87 @@ class CostReporter:
             return round(reduce(lambda a, i: a + float(i['Metrics']['UnblendedCost']['Amount']), groups, 0))
 
         totals = {r['TimePeriod']['End']: get_groups_total(r['Groups']) for r in results}
-        # TODO: generate text item...
+        self._intermediate_results.add(consts.ReportItemName.MONTHLY_TOTAL_COST.value,
+                                       IntermediateComplexResults(list(totals.keys()),
+                                                                  list(totals.values())))
 
         self.item_defs.append(chart_def)
 
     def generate_daily_report(self):
         item_name = consts.ReportItemName.DAILY_COST.value
-        results = self.cost_client.request_cost_and_usage(start=get_days_back(self.config['periods']
-                                                                              ['daily_report_days_back']),
-                                                          end=get_today(),
-                                                          request_name=item_name,
-                                                          group_by_dimensions=['LINKED_ACCOUNT'],
-                                                          granularity='DAILY')
 
-        self._intermediate_results.add(item_name, results)
+        results = self.cost_client.request_cost_and_usage(
+            start=get_days_back(self.config.periods.daily_report_days_back),
+            end=get_today(),
+            request_name=item_name,
+            group_by_dimensions=['LINKED_ACCOUNT'],
+            granularity='DAILY')
+
+        identifiers, values = self.parse_result(results)
+        self._intermediate_results.add(item_name, IntermediateComplexResults(identifiers, values))
 
         item_def: ItemDefinition = self.create_item_definition(cost_results=results,
                                                                item_name=item_name,
                                                                chart_type=ItemType.BAR,
                                                                group="charts")
-        item_def.generate_standalone_report = True
         self.item_defs.append(item_def)
-
-    def generate_services_report(self):
-        item_name = consts.ReportItemName.SERVICES_COST.value
-        results = self.cost_client.request_cost_and_usage(start=get_days_back(self.config['periods']
-                                                                              ['services_report_days_back']),
-                                                          end=get_today(),
-                                                          request_name=item_name,
-                                                          granularity='DAILY',
-                                                          group_by_dimensions=['SERVICE'])
-
-        self._intermediate_results.add(item_name, results)
-
-        item_def: ItemDefinition = self.create_item_definition(cost_results=results,
-                                                               item_name=item_name,
-                                                               chart_type=ItemType.LINE,
-                                                               filtered_keys=self.config['filtered_services'],
-                                                               group="charts")
-        item_def.generate_standalone_report = True
-        self.item_defs.append(item_def)
-
-    def generate_tag_reports(self):
-        resource_tags = self.config.get('resource_tags')
-        if resource_tags:
-            for tag in resource_tags:
-                logger.info(f'generating cost report for tag {tag}')
-                item_name = f"'{tag}' Resources Cost"
-                results = self.cost_client.request_cost_and_usage(start=get_days_back(self.config['periods']
-                                                                                      ['tags_report_days_back']),
-                                                                  end=get_today(),
-                                                                  request_name=item_name,
-                                                                  granularity='DAILY',
-                                                                  group_by_tags=[tag])
-                item_def: ItemDefinition = self.create_item_definition(cost_results=results,
-                                                                       item_name=item_name,
-                                                                       chart_type=ItemType.LINE,
-                                                                       group="charts")
-                item_def.generate_standalone_report = True
-                self.item_defs.append(item_def)
-
-    def generate_last_stable_accounts_cost_report(self):
-        item_name = consts.ReportItemName.ACCOUNTS_COST.value
-        results = self.cost_client.request_cost_and_usage(start=get_days_back(2),
-                                                          end=get_days_back(1),
-                                                          request_name=item_name,
-                                                          group_by_dimensions=['LINKED_ACCOUNT'])
-
-        self._intermediate_results.add(item_name, results)
-
-        for group in results[0]['Groups']:
+        final_day = results[-2]
+        final_day_date = final_day['TimePeriod']['Start']
+        for group in final_day['Groups']:
             cost = int(float(group['Metrics']['UnblendedCost']['Amount']))
             account_id = group["Keys"][0]
             account_name = account_id
 
-            if self.config.get('accounts') and self.config["accounts"].get(account_id):
-                account_name = self.config["accounts"][account_id]
+            if self.config.accounts and self.config.accounts.get(account_id):
+                account_name = self.config.accounts[account_id]
 
-            item_name = f'Latest Stable Total Cost {account_name}'
-
-            self.item_defs.append(ItemDefinition(item_name,
+            self.item_defs.append(ItemDefinition(f'{account_name}({final_day_date})',
                                                  ItemType.VALUE,
                                                  [f'${str(cost)}'],
                                                  group='Account Cost'))
+
+    def generate_services_report(self):
+        item_name = consts.ReportItemName.SERVICES_COST.value
+        results = self.cost_client.request_cost_and_usage(
+            start=get_days_back(self.config.periods.services_report_days_back),
+            end=get_today(),
+            request_name=item_name,
+            granularity='DAILY',
+            group_by_dimensions=['SERVICE'])
+
+        identifiers, values = self.parse_result(results)
+        self._intermediate_results.add(item_name, IntermediateComplexResults(identifiers, values))
+
+        item_def: ItemDefinition = self.create_item_definition(cost_results=results,
+                                                               item_name=item_name,
+                                                               chart_type=ItemType.LINE,
+                                                               filtered_keys=self.config.filtered_services,
+                                                               group="charts")
+        self.item_defs.append(item_def)
+
+    def generate_tag_reports(self):
+        resource_tags = self.config.resource_tags
+        if resource_tags:
+            for tag in resource_tags:
+                logger.info(f'generating cost report for tag {tag}')
+                item_name = f"'{tag}' Resources Cost"
+                results = self.cost_client.request_cost_and_usage(
+                    start=get_days_back(self.config.periods.tags_report_days_back),
+                    end=get_today(),
+                    request_name=item_name,
+                    granularity='DAILY',
+                    group_by_tags=[tag])
+                item_def: ItemDefinition = self.create_item_definition(cost_results=results,
+                                                                       item_name=item_name,
+                                                                       chart_type=ItemType.LINE,
+                                                                       group="charts")
+                self.item_defs.append(item_def)
 
     def generate_current_month_forecast(self):
         item_name = consts.ReportItemName.FORECAST.value
         forecast = self.cost_client.get_monthly_cost_forecast(get_today().isoformat(),
                                                               get_first_day_next_month().isoformat())
-        self._intermediate_results.add(item_name, [forecast])
+        self._intermediate_results.add(item_name, IntermediateSimpleResult(forecast))
         self.item_defs.append(ItemDefinition(item_name,
                                              ItemType.VALUE,
                                              [f'${str(forecast)}']))

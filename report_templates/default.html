@@ -8,7 +8,9 @@
           integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
     <style>
         body {background-color: black}
-        .container {background-color: darkgray}
+        .container {background-color: darkgray;
+                    margin-top:12px;
+                    padding-bottom:12px}
         .h1, .h2 {color: aliceblue}
     </style>
 </head>
@@ -18,11 +20,11 @@
 </div>
 
 <div class="container">
-    <p class="h2">Month Forecast: {{ items['Forecast'] }}</p>
+    <p class="h2">Month Forecast: {{ items['Forecast'] }} ({{items['Forecast Percentage']}})</p>
 </div>
 
 <div class="container">
-    <p class="h2">Accounts Latest Stable Daily Costs</p>
+    <p class="h2">Accounts Latest Final Daily Costs</p>
     <div class="row">
         {% for k,v in items['Account Cost'].items() -%}
         <div class="col-sm">

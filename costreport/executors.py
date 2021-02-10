@@ -5,18 +5,20 @@ from time import sleep
 
 import croniter
 
+from costreport import consts
+from costreport.app_config import AppConfig
 from costreport.cost_client import AwsCostClient
-from costreport.cost_report_generator import CostReporter, LayoutManager
+from costreport.cost_report_generator import CostReporter
 from costreport.date_utils import get_time
+from costreport.layout_manager import LayoutManager
 from costreport.output_manager import OutputManager
-
 
 logger = logging.getLogger(__name__)
 
 
 class ExecutorBase(ABC):
 
-    def __init__(self, config):
+    def __init__(self, config: AppConfig):
         self.config = config
 
     def _generate_report(self):
@@ -24,7 +26,7 @@ class ExecutorBase(ABC):
         reporter = CostReporter(exec_time, self.config, AwsCostClient(self.config))
         reporter.generate()
 
-        data_items = {'Report Title': self.config["report_title"]}
+        data_items = {consts.ReportItemName.REPORT_TITLE.value: self.config.report_title}
         report_html_str = LayoutManager(reporter.item_defs, self.config).layout(data_items)
 
         output_manager = OutputManager(exec_time, self.config)
@@ -64,7 +66,7 @@ class ScheduledExecutor(ExecutorBase):
         return dt.replace(second=0, microsecond=0)
 
     def _exec(self):
-        schedule = self.config.get('schedule')
+        schedule = self.config.schedule
         if not schedule:
             raise Exception('expected schedule configuration!')
         logger.info(f'executing scheduled report executor with schedule {schedule}')
