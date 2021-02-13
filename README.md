@@ -51,6 +51,10 @@ aws credentials environment variables (required):
 * LOGGING_LEVEL - optional. defaults to INFO
 
 ## Configuration
+
+Execution is controlled via a configuration file (which is optional)
+each of the configuration properties can be emitted entirely
+
 ### Example Configuration File
 ```
 {
@@ -95,15 +99,15 @@ aws credentials environment variables (required):
 ```
 ### Configuration Options
 * **report_title** - as the name suggests :-)
-* **accounts** -
-* **periods** -
-* **filtered_services** -
-* **filtered_costs** -
-* **resource_tags** -
-* **destinations** -
-* **template_name** -
-* **schedule** -
-* **use_cache** -
+* **accounts** - dictionary translating account ids to meaningful names
+* **periods** - reports time frames in days
+* **filtered_services** - list of services to exclude from services cost report
+* **filtered_costs** - list of costs to exclude from cost reports
+* **resource_tags** - environment tags to create cost report for
+* **destinations** - additional destinations configuration
+* **template_name** - report template file name (see below)
+* **schedule** - cron expression for report scheduling (see below)
+* **use_cache** - for development purposes. defaults to false. the latest cached API results will be used
 
 ## Report Template
 Report is generated from jinja template. alternative templates can be placed in report_templates
