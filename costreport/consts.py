@@ -22,7 +22,13 @@ class ReportItemName(Enum):
     FORECAST = "Forecast"
     FORECAST_PER = "Forecast Percentage"
     MONTHLY_COST = "Monthly Cost"
+
     MONTHLY_TOTAL_COST = "Monthly Total Cost"
+    MONTHLY_TOTAL_COST_MIN = "Monthly Total Cost Min"
+    MONTHLY_TOTAL_COST_MAX = "Monthly Total Cost Max"
+    MONTHLY_TOTAL_COST_MEAN = "Monthly Total Cost Mean"
+    MONTHLY_TOTAL_COST_TOTAL = "Monthly Total Cost Total"
+
     DAILY_COST = "Daily Cost"
     SERVICES_COST = "Services Cost"
     ACCOUNTS_COST = "Accounts cost"

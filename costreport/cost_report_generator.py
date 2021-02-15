@@ -1,44 +1,23 @@
-import json
 import logging
 import os
 from datetime import datetime
 from functools import reduce
-from typing import List, Tuple, Dict
 
+import pandas as pd
 import plotly.graph_objs as go
 from plotly.offline import plot
 
-from costreport import consts, data_utils
+from costreport import consts
+from costreport.analysis.analyzers import DataAnalyzer
 from costreport.app_config import AppConfig
 from costreport.consts import OUTPUT_DIR, ItemType, ReportItemName
 from costreport.cost_client import AwsCostClient
-from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, format_datetime, \
-    TIME_FORMAT
-from costreport.intermediate_data import IntermediateData, IntermediateSimpleResult, IntermediateComplexResults
+from costreport.data_container import DataContainer
+from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, \
+    format_datetime, TIME_FORMAT
+from costreport.model import ItemDefinition, DataSeries
 
 logger = logging.getLogger(__name__)
-
-
-def _load_config():
-    with open('../configuration.json', 'r') as c:
-        configuration = c.read()
-
-    return json.loads(configuration)
-
-
-class DataSeries:
-    def __init__(self, name, values: List[int]):
-        self.name = name
-        self.values = values
-
-
-class ItemDefinition:
-    def __init__(self, item_name, item_type: ItemType, x: List[str], y: List[DataSeries] = None, group=None):
-        self.item_name = item_name
-        self.chart_type = item_type
-        self.x = x
-        self.y = y
-        self.group = group
 
 
 class ChartPlotter:
@@ -91,16 +70,16 @@ class CostReporter:
         self.config = config
         self.cost_client = cost_client
 
-        self._intermediate_results: IntermediateData = IntermediateData()
+        self.data_container: DataContainer = DataContainer()
 
-        # report data items definitions
+        # report data dataframes definitions
         self.item_defs = []
 
         if not os.path.exists(OUTPUT_DIR):
             os.makedirs(OUTPUT_DIR)
 
     def generate(self):
-        logger.info('fetching data and creating data items')
+        logger.info('fetching data and creating data dataframes')
         self.generate_current_date()
         self.generate_current_month_forecast()
         self.generate_daily_report()
@@ -108,48 +87,48 @@ class CostReporter:
         self.generate_services_report()
         self.generate_tag_reports()
 
-        self.exec_post_actions()
+        DataAnalyzer(self.data_container, self.item_defs).analyze()
 
-    def exec_post_actions(self):
-        logger.info('executing post actions')
-        month_totals: IntermediateComplexResults = self._intermediate_results.get(
-            ReportItemName.MONTHLY_TOTAL_COST.value)
-        last_closed_month = month_totals.values[-2]
-        forecast = self._intermediate_results.get(ReportItemName.FORECAST.value).value
-        forecast_per = data_utils.calc_percentage(forecast, last_closed_month)
-        self.item_defs.append(ItemDefinition(ReportItemName.FORECAST_PER.value,
-                                             ItemType.VALUE,
-                                             [forecast_per]))
+        # TODO: execute data analyzer
+        # self.exec_post_actions()
 
-    def parse_result(self, cost_results) -> Tuple[List, Dict]:
+    def create_data_frame_from_results(self, cost_results):
         """
         returns list of identifiers and dict of values by key
         :param cost_results:
         :return:
         """
-        x_values = []
-        data_series = {}
+        columns = ['dates']
+        data_set = {'dates': []}
 
-        for v in cost_results:
+        for i, v in enumerate(cost_results):
             start = v['TimePeriod']['Start']
             end = v['TimePeriod']['End']
-            x_values.append(f'{start}_{end}')
+            data_set['dates'].append(f'{start}_{end}')
+            date_columns = ['dates']
 
             if v['Groups']:
-                for i in v['Groups']:
-                    key = i['Keys'][0]
+                for g in v['Groups']:
+                    key = g['Keys'][0]
                     # map account id to name:
                     if self.config.accounts and key in self.config.accounts:
                         key = self.config.accounts[key]
 
-                    if not data_series.get(key):
-                        data_series[key] = DataSeries(key, [])
+                    if not data_set.get(key):
+                        # add new column to column list
+                        columns.append(key)
+                        # initialize array and pad with values if needed
+                        data_set[key] = [] if i == 0 else [0] * i
 
-                    series = data_series[key]
+                    date_columns.append(key)
+                    data_set[key].append(float(g['Metrics']['UnblendedCost']['Amount']))
 
-                    series.values.append(float(i['Metrics']['UnblendedCost']['Amount']))
+            # get columns in columns list that were not handled in this date and put '0'
+            missing = [c for c in columns if c not in date_columns]
+            for m in missing:
+                data_set[m].append(0)
 
-        return x_values, data_series
+        return pd.DataFrame.from_dict(data_set)
 
     def create_item_definition(self,
                                cost_results,
@@ -196,7 +175,6 @@ class CostReporter:
     def generate_current_date(self):
         item_name = consts.ReportItemName.CURRENT_DATE.value
         exec_time_str = format_datetime(self.exec_time, TIME_FORMAT)
-        self._intermediate_results.add(item_name, IntermediateSimpleResult(exec_time_str))
         self.item_defs.append(ItemDefinition(item_name,
                                              ItemType.VALUE,
                                              [exec_time_str]))
@@ -209,8 +187,8 @@ class CostReporter:
             request_name=item_name,
             group_by_dimensions=['LINKED_ACCOUNT'])
 
-        identifiers, values = self.parse_result(results)
-        self._intermediate_results.add(item_name, IntermediateComplexResults(identifiers, values))
+        dataframe = self.create_data_frame_from_results(results)
+        self.data_container.add(item_name, dataframe)
 
         chart_def: ItemDefinition = self.create_item_definition(cost_results=results,
                                                                 item_name=item_name,
@@ -221,10 +199,12 @@ class CostReporter:
         def get_groups_total(groups):
             return round(reduce(lambda a, i: a + float(i['Metrics']['UnblendedCost']['Amount']), groups, 0))
 
+        # month totals (all accounts)
         totals = {r['TimePeriod']['End']: get_groups_total(r['Groups']) for r in results}
-        self._intermediate_results.add(consts.ReportItemName.MONTHLY_TOTAL_COST.value,
-                                       IntermediateComplexResults(list(totals.keys()),
-                                                                  list(totals.values())))
+        dataframe = pd.DataFrame.from_dict({
+            'dates': totals.keys(),
+            'values': totals.values()})
+        self.data_container.add(ReportItemName.MONTHLY_TOTAL_COST.value, dataframe)
 
         self.item_defs.append(chart_def)
 
@@ -238,8 +218,8 @@ class CostReporter:
             group_by_dimensions=['LINKED_ACCOUNT'],
             granularity='DAILY')
 
-        identifiers, values = self.parse_result(results)
-        self._intermediate_results.add(item_name, IntermediateComplexResults(identifiers, values))
+        dataframe = self.create_data_frame_from_results(results)
+        self.data_container.add(item_name, dataframe)
 
         item_def: ItemDefinition = self.create_item_definition(cost_results=results,
                                                                item_name=item_name,
@@ -270,8 +250,8 @@ class CostReporter:
             granularity='DAILY',
             group_by_dimensions=['SERVICE'])
 
-        identifiers, values = self.parse_result(results)
-        self._intermediate_results.add(item_name, IntermediateComplexResults(identifiers, values))
+        dataframe = self.create_data_frame_from_results(results)
+        self.data_container.add(item_name, dataframe)
 
         item_def: ItemDefinition = self.create_item_definition(cost_results=results,
                                                                item_name=item_name,
@@ -295,20 +275,16 @@ class CostReporter:
                 item_def: ItemDefinition = self.create_item_definition(cost_results=results,
                                                                        item_name=item_name,
                                                                        chart_type=ItemType.LINE,
-                                                                       group="charts")
+                                                                       group="tags")
                 self.item_defs.append(item_def)
 
     def generate_current_month_forecast(self):
         item_name = consts.ReportItemName.FORECAST.value
         forecast = self.cost_client.get_monthly_cost_forecast(get_today().isoformat(),
                                                               get_first_day_next_month().isoformat())
-        self._intermediate_results.add(item_name, IntermediateSimpleResult(forecast))
+
+        dataframe = pd.DataFrame.from_dict({'values': [forecast]})
+        self.data_container.add(item_name, dataframe)
         self.item_defs.append(ItemDefinition(item_name,
                                              ItemType.VALUE,
                                              [f'${str(forecast)}']))
-
-    def post_processing(self):
-        """
-        generate additional data items based on existing data items.
-        :return: 
-        """
