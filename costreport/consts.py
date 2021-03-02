@@ -34,5 +34,3 @@ class ItemType(Enum):
     LINE = 'line'
     STACK = 'stack'
     VALUE = 'value'
-
-

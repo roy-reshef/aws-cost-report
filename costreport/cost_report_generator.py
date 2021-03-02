@@ -12,8 +12,8 @@ from costreport import consts, data_utils
 from costreport.app_config import AppConfig
 from costreport.consts import OUTPUT_DIR, ItemType, ReportItemName
 from costreport.cost_client import AwsCostClient
-from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, format_datetime, \
-    TIME_FORMAT
+from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, \
+    format_datetime, TIME_FORMAT
 from costreport.intermediate_data import IntermediateData, IntermediateSimpleResult, IntermediateComplexResults
 
 logger = logging.getLogger(__name__)
@@ -310,5 +310,6 @@ class CostReporter:
     def post_processing(self):
         """
         generate additional data items based on existing data items.
-        :return: 
+        :return:
         """
+        ...
