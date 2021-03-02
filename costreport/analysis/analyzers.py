@@ -61,6 +61,7 @@ class MonthlyReportStats(DataAnalyzerBase):
         for k in list(filter(lambda i: i != 'Monthly Cost', {}.keys())):
             ...
 
+
 data_analyzers = [ForecastChangeAnalyzer, MonthlyReportStats]
 
 
