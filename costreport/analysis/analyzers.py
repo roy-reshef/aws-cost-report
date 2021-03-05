@@ -23,7 +23,7 @@ class DataAnalyzerBase(ABC):
 
     @abstractmethod
     def analyze_internal(self):
-        pass
+        raise NotImplementedError(f'must be implemented by subclasses')
 
 
 class ForecastChangeAnalyzer(DataAnalyzerBase):
@@ -58,11 +58,30 @@ class MonthlyReportStats(DataAnalyzerBase):
                                              ItemType.VALUE,
                                              [values.sum()]))
 
-        for k in list(filter(lambda i: i != 'Monthly Cost', {}.keys())):
-            ...
 
+class DailyReportStats(DataAnalyzerBase):
+    def analyze_internal(self):
+        daily_totals: DataFrame = self.data_container.get(ReportItemName.DAILY_TOTAL_COST.value)
+        values = daily_totals['values'].values
 
-data_analyzers = [ForecastChangeAnalyzer, MonthlyReportStats]
+        self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_MIN.value,
+                                             ItemType.VALUE,
+                                             [values.min()]))
+
+        self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_MAX.value,
+                                             ItemType.VALUE,
+                                             [values.max()]))
+
+        self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_MEAN.value,
+                                             ItemType.VALUE,
+                                             [values.mean()]))
+
+        self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_TOTAL.value,
+                                             ItemType.VALUE,
+                                             [values.sum()]))
+        
+        
+data_analyzers = [ForecastChangeAnalyzer, MonthlyReportStats, DailyReportStats]
 
 
 class DataAnalyzer:

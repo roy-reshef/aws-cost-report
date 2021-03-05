@@ -33,7 +33,7 @@ class ChartPlotter:
         y = chart_def.y
 
         for series in y:
-            if chart_def.chart_type == ItemType.BAR or chart_def.chart_type == ItemType.STACK:
+            if chart_def.chart_type in [ItemType.BAR, ItemType.STACK]:
                 data.append(go.Bar(name=series.name, x=x, y=series.values))
             elif chart_def.chart_type == ItemType.LINE:
                 data.append(go.Line(name=series.name, x=x, y=series.values))
@@ -51,9 +51,7 @@ class ChartPlotter:
         return plot(fig, output_type='div')
 
     def get_div(self, chart_def: ItemDefinition) -> str:
-        if chart_def.chart_type == ItemType.BAR or \
-                chart_def.chart_type == ItemType.LINE or \
-                chart_def.chart_type == ItemType.STACK:
+        if chart_def.chart_type in [ItemType.BAR, ItemType.LINE, ItemType.STACK]:
             div = self._get_chart_div(chart_def)
         elif chart_def.chart_type == ItemType.VALUE:
             div = self._get_value_div(chart_def)
@@ -226,6 +224,17 @@ class CostReporter:
                                                                chart_type=ItemType.BAR,
                                                                group="charts")
         self.item_defs.append(item_def)
+
+        def get_groups_total(groups):
+            return round(reduce(lambda a, i: a + float(i['Metrics']['UnblendedCost']['Amount']), groups, 0))
+
+        # daily totals (all accounts)
+        totals = {r['TimePeriod']['Start']: get_groups_total(r['Groups']) for r in results}
+        dataframe = pd.DataFrame.from_dict({
+            'dates': totals.keys(),
+            'values': totals.values()})
+        self.data_container.add(ReportItemName.DAILY_TOTAL_COST.value, dataframe)
+
         final_day = results[-2]
         final_day_date = final_day['TimePeriod']['Start']
         for group in final_day['Groups']:

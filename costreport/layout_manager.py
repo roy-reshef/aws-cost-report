@@ -15,7 +15,7 @@ jinja_env = Environment(
 )
 
 
-class LayoutManager(object):
+class LayoutManager:
 
     def __init__(self, items_defs: List[ItemDefinition], config):
         self.items_defs = items_defs
