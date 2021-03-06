@@ -10,13 +10,14 @@ AWS Costs report tool which leverages AWS cost explorer API to create single pag
 * S3 persistence 
 * Single or scheduled execution
 * Configurable time windows
-* Report data
+* Report data:
   - Monthly total forecast
   - Last day cost
   - Daily cost chart
   - Monthly cost chart 
-  - Services cost
-  - Cost chart per requested tag
+  - Services cost - top services and daily services cost
+  - Cost chart per requested tag (available tags for time window are printed to console)
+  - daily and monthly costs statistics 
 
 ## Prerequisites
 

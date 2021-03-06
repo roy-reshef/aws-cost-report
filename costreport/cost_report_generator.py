@@ -4,8 +4,6 @@ from datetime import datetime
 from functools import reduce
 
 import pandas as pd
-import plotly.graph_objs as go
-from plotly.offline import plot
 
 from costreport import consts
 from costreport.analysis.analyzers import DataAnalyzer
@@ -18,47 +16,6 @@ from costreport.date_utils import get_today, get_months_back, get_days_back, get
 from costreport.model import ItemDefinition, DataSeries
 
 logger = logging.getLogger(__name__)
-
-
-class ChartPlotter:
-
-    @staticmethod
-    def _get_value_div(chart_def: ItemDefinition) -> str:
-        return chart_def.x[0]
-
-    @staticmethod
-    def _get_chart_div(chart_def: ItemDefinition) -> str:
-        data = []
-        x = chart_def.x
-        y = chart_def.y
-
-        for series in y:
-            if chart_def.chart_type in [ItemType.BAR, ItemType.STACK]:
-                data.append(go.Bar(name=series.name, x=x, y=series.values))
-            elif chart_def.chart_type == ItemType.LINE:
-                data.append(go.Line(name=series.name, x=x, y=series.values))
-            else:
-                raise Exception(f'unsupported chart type {chart_def.chart_type}')
-
-        fig = go.Figure(data=data)
-
-        # TODO: configurable
-        fig.update_layout(template="plotly_dark")
-
-        if chart_def.chart_type == ItemType.STACK:
-            fig.update_layout(barmode='stack')
-
-        return plot(fig, output_type='div')
-
-    def get_div(self, chart_def: ItemDefinition) -> str:
-        if chart_def.chart_type in [ItemType.BAR, ItemType.LINE, ItemType.STACK]:
-            div = self._get_chart_div(chart_def)
-        elif chart_def.chart_type == ItemType.VALUE:
-            div = self._get_value_div(chart_def)
-        else:
-            raise Exception(f'unsupported chart type {chart_def.chart_type}')
-
-        return div
 
 
 class CostReporter:
@@ -83,6 +40,7 @@ class CostReporter:
         self.generate_daily_report()
         self.generate_monthly_report()
         self.generate_services_report()
+        self.get_available_tags()
         self.generate_tag_reports()
 
         DataAnalyzer(self.data_container, self.item_defs).analyze()
@@ -237,6 +195,11 @@ class CostReporter:
 
         final_day = results[-2]
         final_day_date = final_day['TimePeriod']['Start']
+
+        self.item_defs.append(ItemDefinition(ReportItemName.LAST_FINAL_DATE.value,
+                                             ItemType.VALUE,
+                                             [final_day_date]))
+
         for group in final_day['Groups']:
             cost = int(float(group['Metrics']['UnblendedCost']['Amount']))
             account_id = group["Keys"][0]
@@ -245,7 +208,7 @@ class CostReporter:
             if self.config.accounts and self.config.accounts.get(account_id):
                 account_name = self.config.accounts[account_id]
 
-            self.item_defs.append(ItemDefinition(f'{account_name}({final_day_date})',
+            self.item_defs.append(ItemDefinition(f'{account_name}',
                                                  ItemType.VALUE,
                                                  [f'${str(cost)}'],
                                                  group='Account Cost'))
@@ -268,6 +231,41 @@ class CostReporter:
                                                                filtered_keys=self.config.filtered_services,
                                                                group="charts")
         self.item_defs.append(item_def)
+
+        # calculate services total cost
+        service_names = dataframe.columns.values.tolist()
+        service_names.remove('dates')
+
+        total_values = {}
+        # sum service cost
+        for service_name in list(filter(lambda i: i not in self.config.filtered_services, service_names)):
+            total_values[service_name] = round(dataframe[service_name].values.sum())
+
+        # sort services by cost
+        total_values = {k: v for k, v in sorted(total_values.items(), key=lambda item: item[1], reverse=True)}
+
+        # top services (5 and others)
+        top = {'others': 0}
+        for i, k in enumerate(total_values):
+            if i <= 5:
+                top[k] = total_values[k]
+            else:
+                top['others'] = top['others'] + total_values[k]
+
+        item_name = consts.ReportItemName.SERVICES_TOP_COST.value
+
+        item_def: ItemDefinition = ItemDefinition(item_name,
+                                                  item_type=ItemType.PIE,
+                                                  x=list(top.keys()),
+                                                  y=[DataSeries('values', list(top.values()))],
+                                                  group="charts")
+        self.item_defs.append(item_def)
+
+    def get_available_tags(self):
+        avail_tags = self.cost_client.get_available_tags(
+            start_date=get_days_back(self.config.periods.tags_report_days_back),
+            end_date=get_today())
+        logger.info(f'available tags for tag reports time window:{avail_tags}')
 
     def generate_tag_reports(self):
         resource_tags = self.config.resource_tags
