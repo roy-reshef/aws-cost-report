@@ -1,4 +1,3 @@
-import json
 import logging
 
 from costreport.app_config import AppConfig

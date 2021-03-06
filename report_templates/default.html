@@ -8,6 +8,9 @@
           integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
     <style>
         body {background-color: black}
+        .row {margin-top:12px;
+              padding-bottom:12px}
+
         .container {background-color: darkgray;
                     margin-top:12px;
                     padding-bottom:12px}
@@ -39,7 +42,90 @@
     </div>
 </div>
 
-{% for k,v in items['charts'].items() -%}
+<div class="container">
+    <p class="h2">Monthly Cost</p>
+    {{ items['charts']['Monthly Cost'] }}
+    <div class="row">
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Min" }}</h5>
+                    <p class="card-text">{{ items["Monthly Total Cost Min"] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Max" }}</h5>
+                    <p class="card-text">{{ items["Monthly Total Cost Max"] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Mean" }}</h5>
+                    <p class="card-text">{{ items["Monthly Total Cost Mean"] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Total" }}</h5>
+                    <p class="card-text">{{ items["Monthly Total Cost Total"] }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <p class="h2">Daily Cost</p>
+    {{ items['charts']['Daily Cost'] }}
+    <div class="row">
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Min" }}</h5>
+                    <p class="card-text">{{ items["Daily Total Cost Min"] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Max" }}</h5>
+                    <p class="card-text">{{ items["Daily Total Cost Max"] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Mean" }}</h5>
+                    <p class="card-text">{{ items["Daily Total Cost Mean"] }}</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm">
+            <div class="card" style="width: 18rem;">
+                <div class="card-body">
+                    <h5 class="card-title">{{ "Total" }}</h5>
+                    <p class="card-text">{{ items["Daily Total Cost Total"] }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <p class="h2">Services Cost</p>
+    {{ items['charts']['Services Cost'] }}
+</div>
+
+{% for k,v in items['tags'].items() -%}
 <div class="container">
     <p class="h2">{{ k }}</p>
     {{ v }}</div>

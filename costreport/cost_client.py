@@ -16,6 +16,7 @@ class RawDateHandler:
     def __init__(self, config: AppConfig):
         self.enabled = config.use_cache
         if self.enabled:
+            logger.info("cost client will use cached results")
             if not os.path.exists(CACHE_RESULTS_DIR):
                 os.makedirs(CACHE_RESULTS_DIR)
 
