@@ -19,6 +19,8 @@ CACHE_RESULTS_DIR = '.cache'
 class ReportItemName(Enum):
     REPORT_TITLE = "Report Title"
     CURRENT_DATE = "Current Date"
+    LAST_FINAL_DATE = "Last Final Date"
+
     FORECAST = "Forecast"
     FORECAST_PER = "Forecast Percentage"
     MONTHLY_COST = "Monthly Cost"
@@ -35,7 +37,10 @@ class ReportItemName(Enum):
     DAILY_TOTAL_COST_MAX = "Daily Total Cost Max"
     DAILY_TOTAL_COST_MEAN = "Daily Total Cost Mean"
     DAILY_TOTAL_COST_TOTAL = "Daily Total Cost Total"
+
     SERVICES_COST = "Services Cost"
+    SERVICES_TOP_COST = "Top Services"
+
     ACCOUNTS_COST = "Accounts cost"
 
 
@@ -44,4 +49,5 @@ class ItemType(Enum):
     BAR = 'bar'
     LINE = 'line'
     STACK = 'stack'
+    PIE = 'pie'
     VALUE = 'value'

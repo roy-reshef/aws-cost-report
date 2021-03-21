@@ -56,6 +56,15 @@ class AwsCostClient:
 
         return previous_result
 
+    @staticmethod
+    def get_enriched_env():
+        p_env = os.environ.copy()
+        p_env['AWS_ACCESS_KEY_ID'] = AWS_ACCESS_KEY_ID
+        p_env['AWS_SECRET_ACCESS_KEY'] = AWS_SECRET_ACCESS_KEY
+        p_env['AWS_DEFAULT_REGION'] = REGION_NAME
+
+        return p_env
+
     def get_monthly_cost_forecast(self, start_date, end_date):
         res_data = self.load_previous_result('monthly_forecast')
 
@@ -69,10 +78,7 @@ class AwsCostClient:
                 with open(cost_filter_file, 'w') as f:
                     json.dump(costs_filter, f)
 
-            p_env = os.environ.copy()
-            p_env['AWS_ACCESS_KEY_ID'] = AWS_ACCESS_KEY_ID
-            p_env['AWS_SECRET_ACCESS_KEY'] = AWS_SECRET_ACCESS_KEY
-            p_env['AWS_DEFAULT_REGION'] = REGION_NAME
+            p_env = self.get_enriched_env()
 
             params = ['aws', 'ce', 'get-cost-forecast',
                       '--metric', 'UNBLENDED_COST',
@@ -92,6 +98,26 @@ class AwsCostClient:
                 os.remove(cost_filter_file)
 
         return int(float(res_data['Total']['Amount']))
+
+    def get_available_tags(self, start_date, end_date):
+        #     aws --profile=tikal ce get-tags --time-period Start=2021-01-01,End=2021-04-01
+
+        res_data = self.load_previous_result('available_tags')
+
+        if not res_data:
+            logger.info("getting available tags from AWS")
+
+            p_env = self.get_enriched_env()
+
+            params = ['aws', 'ce', 'get-tags', '--time-period', f'Start={start_date},End={end_date}']
+
+            result = subprocess.Popen(params,
+                                      env=p_env,
+                                      stdout=subprocess.PIPE).communicate()[0]
+            self.raw_data.save('available_tags', result.decode("utf-8"))
+            res_data = json.loads(result)
+
+        return res_data['Tags']
 
     def request_cost_and_usage(self,
                                start: date,

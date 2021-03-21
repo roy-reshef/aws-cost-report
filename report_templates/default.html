@@ -4,8 +4,9 @@
     <title>{{ items['Report Title'] }} {{ items['Current Date'] }}</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/css/bootstrap.min.css" rel="stylesheet"
-          integrity="sha384-giJF6kkoqNQ00vy+HMDP7azOuL0xtbfIcaT9wjKHr8RbDVddVHyTfAAsrekwKmP1" crossorigin="anonymous">
+
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
+          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
     <style>
         body {background-color: black}
         .row {margin-top:12px;
@@ -13,12 +14,19 @@
 
         .container {background-color: darkgray;
                     margin-top:12px;
-                    padding-bottom:12px}
+                    padding-bottom:12px;
+                    max-width: 1600px}
         .h1, .h2 {color: aliceblue}
     </style>
+
+    <script type="text/javascript">
+        function collapse() {
+            $('#servicesDailyCollapse').collapse()
+        }
+    </script>
 </head>
-<body>
-<div class="container" style="text-align: center;">
+<body onload="collapse()">
+<div style="text-align: center;">
     <p class="h1">{{ items['Report Title'] }} {{ items['Current Date'] }}</p>
 </div>
 
@@ -27,7 +35,7 @@
 </div>
 
 <div class="container">
-    <p class="h2">Accounts Latest Final Daily Costs</p>
+    <p class="h2">Accounts Latest Final Daily Cost ({{ items['Last Final Date'] }})</p>
     <div class="row">
         {% for k,v in items['Account Cost'].items() -%}
         <div class="col-sm">
@@ -122,7 +130,39 @@
 
 <div class="container">
     <p class="h2">Services Cost</p>
-    {{ items['charts']['Services Cost'] }}
+    <div id="accordion">
+        <div class="card">
+            <div class="card-header" id="servicesTotalCard">
+                <h5 class="mb-0">
+                    <button class="btn btn-link" data-toggle="collapse" data-target="#servicesTotalCollapse"
+                            aria-expanded="true" aria-controls="servicesTotalCollapse">
+                        Top
+                    </button>
+                </h5>
+            </div>
+
+            <div id="servicesTotalCollapse" class="collapse show" aria-labelledby="headingOne" data-parent="#accordion">
+                <div class="card-body">
+                    {{ items['charts']['Top Services'] }}
+                </div>
+            </div>
+        </div>
+        <div class="card">
+            <div class="card-header" id="servicesDailyCard">
+                <h5 class="mb-0">
+                    <button class="btn btn-link collapsed" data-toggle="collapse"
+                        data-target="#servicesDailyCollapse" aria-expanded="false" aria-controls="servicesDailyCollapse">
+                        Daily
+                    </button>
+                </h5>
+            </div>
+            <div id="servicesDailyCollapse" class="collapse show" aria-labelledby="headingTwo" data-parent="#accordion">
+                <div class="card-body">
+                    {{ items['charts']['Services Cost'] }}
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 {% for k,v in items['tags'].items() -%}
@@ -131,9 +171,9 @@
     {{ v }}</div>
 {% endfor %}
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.0-beta1/dist/js/bootstrap.bundle.min.js"
-        integrity="sha384-ygbV9kiqUc6oa4msXn9868pTtWMgiQaeYH7/t7LECLbyPA2x65Kgf80OJFdroafW"
-        crossorigin="anonymous"></script>
 
+<script src="https://code.jquery.com/jquery-3.2.1.slim.min.js" integrity="sha384-KJ3o2DKtIkvYIK3UENzmM7KCkRr/rE9/Qpg6aAZGJwFDMVNA/GpGFF93hXpG5KkN" crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js" integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js" integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
 </body>
 </html>
