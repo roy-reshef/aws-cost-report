@@ -2,8 +2,8 @@ import logging
 from datetime import datetime
 
 from costreport.app_config import AppConfig, ReportDestination, S3Destination
-from costreport.consts import OUTPUT_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-from costreport.date_utils import format_datetime, PATH_TIME_FORMAT
+from costreport.utils.consts import OUTPUT_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+from costreport.utils.date_utils import format_datetime, PATH_TIME_FORMAT
 from costreport.s3_client import S3Client
 
 logger = logging.getLogger(__name__)

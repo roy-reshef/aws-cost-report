@@ -1,7 +1,7 @@
 import logging
 
 from costreport.app_config import AppConfig
-from costreport.consts import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME
+from costreport.utils.consts import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME
 from costreport.executors import ScheduledExecutor, SingleExecutor
 
 logger = logging.getLogger(__name__)

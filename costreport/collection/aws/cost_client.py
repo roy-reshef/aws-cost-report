@@ -7,11 +7,12 @@ from datetime import date
 import boto3
 
 from costreport.app_config import AppConfig
-from costreport.consts import CACHE_RESULTS_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME, OUTPUT_DIR
+from costreport.utils.consts import CACHE_RESULTS_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME, OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 
 
+# TODO: raw data handler should be externalized
 class RawDateHandler:
     def __init__(self, config: AppConfig):
         self.enabled = config.use_cache
@@ -100,8 +101,6 @@ class AwsCostClient:
         return int(float(res_data['Total']['Amount']))
 
     def get_available_tags(self, start_date, end_date):
-        #     aws --profile=tikal ce get-tags --time-period Start=2021-01-01,End=2021-04-01
-
         res_data = self.load_previous_result('available_tags')
 
         if not res_data:

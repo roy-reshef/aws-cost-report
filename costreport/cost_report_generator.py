@@ -1,29 +1,35 @@
 import logging
 import os
 from datetime import datetime
-from functools import reduce
 
 import pandas as pd
 
-from costreport import consts
 from costreport.analysis.analyzers import DataAnalyzer
 from costreport.app_config import AppConfig
-from costreport.consts import OUTPUT_DIR, ItemType, ReportItemName
-from costreport.cost_client import AwsCostClient
+from costreport.collection.aws.cost_client import RawDateHandler
+from costreport.collection.collector import Collector
 from costreport.data_container import DataContainer
-from costreport.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month, \
-    format_datetime, TIME_FORMAT
 from costreport.model import ItemDefinition, DataSeries
+from costreport.utils import consts
+from costreport.utils.consts import OUTPUT_DIR, ItemType, ReportItemName
+from costreport.utils.date_utils import format_datetime, TIME_FORMAT
 
 logger = logging.getLogger(__name__)
 
 
 class CostReporter:
 
-    def __init__(self, exec_time: datetime, config: AppConfig, cost_client: AwsCostClient):
+    def __init__(self,
+                 exec_time: datetime,
+                 config: AppConfig,
+                 collector: Collector):
         self.exec_time = exec_time
         self.config = config
-        self.cost_client = cost_client
+
+        # TODO: this is temporary. use from consts
+        CACHE_RESULTS_DIR = '.cache2'
+        self.raw_data = RawDateHandler(config)
+        self.collector = collector
 
         self.data_container: DataContainer = DataContainer()
 
@@ -44,47 +50,6 @@ class CostReporter:
         self.generate_tag_reports()
 
         DataAnalyzer(self.data_container, self.item_defs).analyze()
-
-        # TODO: execute data analyzer
-        # self.exec_post_actions()
-
-    def create_data_frame_from_results(self, cost_results):
-        """
-        returns list of identifiers and dict of values by key
-        :param cost_results:
-        :return:
-        """
-        columns = ['dates']
-        data_set = {'dates': []}
-
-        for i, v in enumerate(cost_results):
-            start = v['TimePeriod']['Start']
-            end = v['TimePeriod']['End']
-            data_set['dates'].append(f'{start}_{end}')
-            date_columns = ['dates']
-
-            if v['Groups']:
-                for g in v['Groups']:
-                    key = g['Keys'][0]
-                    # map account id to name:
-                    if self.config.accounts and key in self.config.accounts:
-                        key = self.config.accounts[key]
-
-                    if not data_set.get(key):
-                        # add new column to column list
-                        columns.append(key)
-                        # initialize array and pad with values if needed
-                        data_set[key] = [] if i == 0 else [0] * i
-
-                    date_columns.append(key)
-                    data_set[key].append(float(g['Metrics']['UnblendedCost']['Amount']))
-
-            # get columns in columns list that were not handled in this date and put '0'
-            missing = [c for c in columns if c not in date_columns]
-            for m in missing:
-                data_set[m].append(0)
-
-        return pd.DataFrame.from_dict(data_set)
 
     def create_item_definition(self,
                                cost_results,
@@ -128,6 +93,56 @@ class CostReporter:
                               list(data_series.values()),
                               group=group)
 
+    def create_item_definition_from_df(self,
+                                       dataframe: pd.DataFrame,
+                                       item_name,
+                                       chart_type: ItemType,
+                                       group=None,
+                                       filtered_keys=None) -> ItemDefinition:
+        if not filtered_keys:
+            filtered_keys = []
+
+        column_names = dataframe.columns.tolist()
+        column_names = list(filter(lambda i: i == 'dates' or i not in filtered_keys, column_names))
+
+        if 'dates' not in column_names:
+            raise Exception("dataframe should have 'dates' column")
+
+        x_values = dataframe['dates']
+        column_names.remove('dates')
+        data_series = []
+
+        for names in column_names:
+            data_values = dataframe[names].values
+
+            # sanity check
+            if len(data_values) != len(x_values):
+                raise Exception('values array length does not match dates array length')
+
+            series = DataSeries(names, data_values)
+            data_series.append(series)
+
+        return ItemDefinition(item_name,
+                              chart_type,
+                              x_values,
+                              data_series,
+                              group=group)
+
+    def get_totals(self, dataframe):
+        account_col_names = dataframe.columns.tolist()
+        account_col_names.remove('dates')
+
+        totals = []
+        for i in range(0, len(dataframe['dates'].tolist())):
+            total = 0
+            for account in account_col_names:
+                total += dataframe[account].tolist()[i]
+            totals.append(total)
+
+        return pd.DataFrame.from_dict({
+            'dates': dataframe['dates'].tolist(),
+            'values': totals})
+
     def generate_current_date(self):
         item_name = consts.ReportItemName.CURRENT_DATE.value
         exec_time_str = format_datetime(self.exec_time, TIME_FORMAT)
@@ -137,99 +152,61 @@ class CostReporter:
 
     def generate_monthly_report(self):
         item_name = consts.ReportItemName.MONTHLY_COST.value
-        results = self.cost_client.request_cost_and_usage(
-            start=get_months_back(self.config.periods.monthly_report_months_back),
-            end=get_today(),
-            request_name=item_name,
-            group_by_dimensions=['LINKED_ACCOUNT'])
-
-        dataframe = self.create_data_frame_from_results(results)
+        dataframe = self.collector.get_monthly_report()
         self.data_container.add(item_name, dataframe)
 
-        chart_def: ItemDefinition = self.create_item_definition(cost_results=results,
-                                                                item_name=item_name,
-                                                                chart_type=ItemType.STACK,
-                                                                group="charts")
-
-        # calculate months total and percentage
-        def get_groups_total(groups):
-            return round(reduce(lambda a, i: a + float(i['Metrics']['UnblendedCost']['Amount']), groups, 0))
+        chart_def: ItemDefinition = self.create_item_definition_from_df(dataframe=dataframe,
+                                                                        item_name=item_name,
+                                                                        chart_type=ItemType.STACK,
+                                                                        group="charts")
 
         # month totals (all accounts)
-        totals = {r['TimePeriod']['End']: get_groups_total(r['Groups']) for r in results}
-        dataframe = pd.DataFrame.from_dict({
-            'dates': totals.keys(),
-            'values': totals.values()})
-        self.data_container.add(ReportItemName.MONTHLY_TOTAL_COST.value, dataframe)
-
+        self.data_container.add(ReportItemName.MONTHLY_TOTAL_COST.value, self.get_totals(dataframe))
         self.item_defs.append(chart_def)
 
     def generate_daily_report(self):
         item_name = consts.ReportItemName.DAILY_COST.value
-
-        results = self.cost_client.request_cost_and_usage(
-            start=get_days_back(self.config.periods.daily_report_days_back),
-            end=get_today(),
-            request_name=item_name,
-            group_by_dimensions=['LINKED_ACCOUNT'],
-            granularity='DAILY')
-
-        dataframe = self.create_data_frame_from_results(results)
+        dataframe = self.collector.get_daily_report()
         self.data_container.add(item_name, dataframe)
 
-        item_def: ItemDefinition = self.create_item_definition(cost_results=results,
-                                                               item_name=item_name,
-                                                               chart_type=ItemType.BAR,
-                                                               group="charts")
+        item_def: ItemDefinition = self.create_item_definition_from_df(dataframe=dataframe,
+                                                                       item_name=item_name,
+                                                                       chart_type=ItemType.BAR,
+                                                                       group="charts")
         self.item_defs.append(item_def)
 
-        def get_groups_total(groups):
-            return round(reduce(lambda a, i: a + float(i['Metrics']['UnblendedCost']['Amount']), groups, 0))
+        account_col_names = dataframe.columns.tolist()
+        account_col_names.remove('dates')
 
-        # daily totals (all accounts)
-        totals = {r['TimePeriod']['Start']: get_groups_total(r['Groups']) for r in results}
-        dataframe = pd.DataFrame.from_dict({
-            'dates': totals.keys(),
-            'values': totals.values()})
-        self.data_container.add(ReportItemName.DAILY_TOTAL_COST.value, dataframe)
+        self.data_container.add(ReportItemName.DAILY_TOTAL_COST.value, self.get_totals(dataframe))
 
-        final_day = results[-2]
-        final_day_date = final_day['TimePeriod']['Start']
+        # generate final cost day date data item
+        final_day = dataframe['dates'].tolist()[-2]
 
         self.item_defs.append(ItemDefinition(ReportItemName.LAST_FINAL_DATE.value,
                                              ItemType.VALUE,
-                                             [final_day_date]))
+                                             [final_day]))
 
-        for group in final_day['Groups']:
-            cost = int(float(group['Metrics']['UnblendedCost']['Amount']))
-            account_id = group["Keys"][0]
-            account_name = account_id
+        # final day cost for each account
+        for account in account_col_names:
+            cost = dataframe[account].tolist()[-2]
 
-            if self.config.accounts and self.config.accounts.get(account_id):
-                account_name = self.config.accounts[account_id]
-
-            self.item_defs.append(ItemDefinition(f'{account_name}',
+            self.item_defs.append(ItemDefinition(f'{account}',
                                                  ItemType.VALUE,
                                                  [f'${str(cost)}'],
                                                  group='Account Cost'))
 
     def generate_services_report(self):
         item_name = consts.ReportItemName.SERVICES_COST.value
-        results = self.cost_client.request_cost_and_usage(
-            start=get_days_back(self.config.periods.services_report_days_back),
-            end=get_today(),
-            request_name=item_name,
-            granularity='DAILY',
-            group_by_dimensions=['SERVICE'])
+        dataframe = self.collector.get_services_report()
 
-        dataframe = self.create_data_frame_from_results(results)
         self.data_container.add(item_name, dataframe)
 
-        item_def: ItemDefinition = self.create_item_definition(cost_results=results,
-                                                               item_name=item_name,
-                                                               chart_type=ItemType.LINE,
-                                                               filtered_keys=self.config.filtered_services,
-                                                               group="charts")
+        item_def: ItemDefinition = self.create_item_definition_from_df(dataframe=dataframe,
+                                                                       item_name=item_name,
+                                                                       chart_type=ItemType.LINE,
+                                                                       group="charts",
+                                                                       filtered_keys=self.config.filtered_services)
         self.item_defs.append(item_def)
 
         # calculate services total cost
@@ -262,9 +239,7 @@ class CostReporter:
         self.item_defs.append(item_def)
 
     def get_available_tags(self):
-        avail_tags = self.cost_client.get_available_tags(
-            start_date=get_days_back(self.config.periods.tags_report_days_back),
-            end_date=get_today())
+        avail_tags = self.collector.get_available_tags()
         logger.info(f'available tags for tag reports time window:{avail_tags}')
 
     def generate_tag_reports(self):
@@ -273,24 +248,17 @@ class CostReporter:
             for tag in resource_tags:
                 logger.info(f'generating cost report for tag {tag}')
                 item_name = f"'{tag}' Resources Cost"
-                results = self.cost_client.request_cost_and_usage(
-                    start=get_days_back(self.config.periods.tags_report_days_back),
-                    end=get_today(),
-                    request_name=item_name,
-                    granularity='DAILY',
-                    group_by_tags=[tag])
-                item_def: ItemDefinition = self.create_item_definition(cost_results=results,
-                                                                       item_name=item_name,
-                                                                       chart_type=ItemType.LINE,
-                                                                       group="tags")
+                dataframe = self.collector.get_tag_report(tag)
+                item_def: ItemDefinition = self.create_item_definition_from_df(dataframe=dataframe,
+                                                                               item_name=item_name,
+                                                                               chart_type=ItemType.LINE,
+                                                                               group="tags")
                 self.item_defs.append(item_def)
 
     def generate_current_month_forecast(self):
         item_name = consts.ReportItemName.FORECAST.value
-        forecast = self.cost_client.get_monthly_cost_forecast(get_today().isoformat(),
-                                                              get_first_day_next_month().isoformat())
-
-        dataframe = pd.DataFrame.from_dict({'values': [forecast]})
+        dataframe = self.collector.get_current_month_forecast()
+        forecast = dataframe['values'][0]
         self.data_container.add(item_name, dataframe)
         self.item_defs.append(ItemDefinition(item_name,
                                              ItemType.VALUE,

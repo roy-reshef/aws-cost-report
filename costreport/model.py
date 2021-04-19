@@ -1,6 +1,6 @@
 from typing import List
 
-from costreport.consts import ItemType
+from costreport.utils.consts import ItemType
 
 
 class DataSeries:

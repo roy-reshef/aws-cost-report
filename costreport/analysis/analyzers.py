@@ -4,8 +4,8 @@ from typing import List
 
 from pandas import DataFrame
 
-from costreport import data_utils
-from costreport.consts import ReportItemName, ItemType
+from costreport.utils import data_utils
+from costreport.utils.consts import ReportItemName, ItemType
 from costreport.data_container import DataContainer
 from costreport.model import ItemDefinition
 
@@ -44,19 +44,19 @@ class MonthlyReportStats(DataAnalyzerBase):
 
         self.item_defs.append(ItemDefinition(ReportItemName.MONTHLY_TOTAL_COST_MIN.value,
                                              ItemType.VALUE,
-                                             [values.min()]))
+                                             [round(values.min(), 1)]))
 
         self.item_defs.append(ItemDefinition(ReportItemName.MONTHLY_TOTAL_COST_MAX.value,
                                              ItemType.VALUE,
-                                             [values.max()]))
+                                             [round(values.max(), 1)]))
 
         self.item_defs.append(ItemDefinition(ReportItemName.MONTHLY_TOTAL_COST_MEAN.value,
                                              ItemType.VALUE,
-                                             [values.mean()]))
+                                             [round(values.mean(), 1)]))
 
         self.item_defs.append(ItemDefinition(ReportItemName.MONTHLY_TOTAL_COST_TOTAL.value,
                                              ItemType.VALUE,
-                                             [values.sum()]))
+                                             [round(values.sum(), 1)]))
 
 
 class DailyReportStats(DataAnalyzerBase):
@@ -66,19 +66,19 @@ class DailyReportStats(DataAnalyzerBase):
 
         self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_MIN.value,
                                              ItemType.VALUE,
-                                             [values.min()]))
+                                             [round(values.min(), 1)]))
 
         self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_MAX.value,
                                              ItemType.VALUE,
-                                             [values.max()]))
+                                             [round(values.max(), 1)]))
 
         self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_MEAN.value,
                                              ItemType.VALUE,
-                                             [values.mean()]))
+                                             [round(values.mean(), 1)]))
 
         self.item_defs.append(ItemDefinition(ReportItemName.DAILY_TOTAL_COST_TOTAL.value,
                                              ItemType.VALUE,
-                                             [values.sum()]))
+                                             [round(values.sum(), 1)]))
         
         
 data_analyzers = [ForecastChangeAnalyzer, MonthlyReportStats, DailyReportStats]

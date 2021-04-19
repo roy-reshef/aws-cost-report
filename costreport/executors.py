@@ -5,11 +5,11 @@ from time import sleep
 
 import croniter
 
-from costreport import consts
+from costreport.utils import consts
 from costreport.app_config import AppConfig
-from costreport.cost_client import AwsCostClient
+from costreport.collection.aws.aws_collector import AwsCollector
 from costreport.cost_report_generator import CostReporter
-from costreport.date_utils import get_time
+from costreport.utils.date_utils import get_time
 from costreport.layout_manager import LayoutManager
 from costreport.output_manager import OutputManager
 
@@ -23,7 +23,7 @@ class ExecutorBase(ABC):
 
     def _generate_report(self):
         exec_time = get_time()
-        reporter = CostReporter(exec_time, self.config, AwsCostClient(self.config))
+        reporter = CostReporter(exec_time, self.config, AwsCollector(self.config, exec_time))
         reporter.generate()
 
         data_items = {consts.ReportItemName.REPORT_TITLE.value: self.config.report_title}
