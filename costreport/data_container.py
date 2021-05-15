@@ -2,7 +2,7 @@ from typing import Dict
 
 from pandas import DataFrame
 
-from costreport.consts import ReportItemName
+from costreport.utils.consts import ReportItemName
 
 
 class DataContainer:

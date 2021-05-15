@@ -5,13 +5,14 @@ from time import sleep
 
 import croniter
 
-from costreport import consts
 from costreport.app_config import AppConfig
-from costreport.cost_client import AwsCostClient
+from costreport.collection.aws.aws_collector import AwsCollector
 from costreport.cost_report_generator import CostReporter
-from costreport.date_utils import get_time
 from costreport.layout_manager import LayoutManager
 from costreport.output_manager import OutputManager
+from costreport.utils import consts
+from costreport.utils.cache_manager import RawDateCacheManager
+from costreport.utils.date_utils import get_time
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,14 @@ class ExecutorBase(ABC):
 
     def _generate_report(self):
         exec_time = get_time()
-        reporter = CostReporter(exec_time, self.config, AwsCostClient(self.config))
+        # TODO: temporarily pass hardcoded connector name. once
+        # once another connector is implemented and configuration will support multiple
+        # connectors - take name from configuration
+
+        reporter = CostReporter(exec_time, self.config, AwsCollector(self.config,
+                                                                     exec_time,
+                                                                     RawDateCacheManager(self.config,
+                                                                                         "aws")))
         reporter.generate()
 
         data_items = {consts.ReportItemName.REPORT_TITLE.value: self.config.report_title}

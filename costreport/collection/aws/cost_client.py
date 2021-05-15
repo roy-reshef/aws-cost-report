@@ -7,41 +7,17 @@ from datetime import date
 import boto3
 
 from costreport.app_config import AppConfig
-from costreport.consts import CACHE_RESULTS_DIR, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME, OUTPUT_DIR
+from costreport.utils.cache_manager import RawDateCacheManager
+from costreport.utils.consts import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME, OUTPUT_DIR
 
 logger = logging.getLogger(__name__)
 
 
-class RawDateHandler:
-    def __init__(self, config: AppConfig):
-        self.enabled = config.use_cache
-        if self.enabled:
-            logger.info("cost client will use cached results")
-            if not os.path.exists(CACHE_RESULTS_DIR):
-                os.makedirs(CACHE_RESULTS_DIR)
-
-    def save(self, key: str, value: str):
-        if self.enabled:
-            with open(f'{CACHE_RESULTS_DIR}/{key}', 'w') as f:
-                f.write(value)
-
-    @staticmethod
-    def get(key):
-        cached_content = None
-        try:
-            with open(f'{CACHE_RESULTS_DIR}/{key}', 'r') as f:
-                cached_content = f.read()
-        except Exception as e:
-            logger.debug(f'could not load cached key:{key}: {str(e)}')
-
-        return cached_content
-
-
 class AwsCostClient:
 
-    def __init__(self, config: AppConfig):
+    def __init__(self, config: AppConfig, cache: RawDateCacheManager):
         self.config = config
-        self.raw_data = RawDateHandler(config)
+        self.cache = cache
         self.client = boto3.client('ce',
                                    aws_access_key_id=AWS_ACCESS_KEY_ID,
                                    aws_secret_access_key=AWS_SECRET_ACCESS_KEY,
@@ -49,8 +25,8 @@ class AwsCostClient:
 
     def load_previous_result(self, key):
         previous_result = None
-        if self.raw_data.enabled:
-            raw_result = self.raw_data.get(key)
+        if self.cache.enabled:
+            raw_result = self.cache.get(key)
             if raw_result:
                 previous_result = json.loads(raw_result)
 
@@ -91,7 +67,7 @@ class AwsCostClient:
             result = subprocess.Popen(params,
                                       env=p_env,
                                       stdout=subprocess.PIPE).communicate()[0]
-            self.raw_data.save('monthly_forecast', result.decode("utf-8"))
+            self.cache.save('monthly_forecast', result.decode("utf-8"))
             res_data = json.loads(result)
 
             if self.config.filtered_costs:
@@ -100,8 +76,6 @@ class AwsCostClient:
         return int(float(res_data['Total']['Amount']))
 
     def get_available_tags(self, start_date, end_date):
-        #     aws --profile=tikal ce get-tags --time-period Start=2021-01-01,End=2021-04-01
-
         res_data = self.load_previous_result('available_tags')
 
         if not res_data:
@@ -114,7 +88,7 @@ class AwsCostClient:
             result = subprocess.Popen(params,
                                       env=p_env,
                                       stdout=subprocess.PIPE).communicate()[0]
-            self.raw_data.save('available_tags', result.decode("utf-8"))
+            self.cache.save('available_tags', result.decode("utf-8"))
             res_data = json.loads(result)
 
         return res_data['Tags']
@@ -194,7 +168,7 @@ class AwsCostClient:
                 token = data.get('NextPageToken')
 
                 if not token:
-                    self.raw_data.save(request_name, json.dumps(results))
+                    self.cache.save(request_name, json.dumps(results))
                     break
 
         return results

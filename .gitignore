@@ -129,4 +129,4 @@ dmypy.json
 .pyre/
 
 /generated-reports/
-/.cache/
+/.cache_aws/
