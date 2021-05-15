@@ -6,7 +6,6 @@ import pandas as pd
 
 from costreport.analysis.analyzers import DataAnalyzer
 from costreport.app_config import AppConfig
-from costreport.collection.aws.cost_client import RawDateHandler
 from costreport.collection.collector import Collector
 from costreport.data_container import DataContainer
 from costreport.model import ItemDefinition, DataSeries
@@ -26,9 +25,6 @@ class CostReporter:
         self.exec_time = exec_time
         self.config = config
 
-        # TODO: this is temporary. use from consts
-        CACHE_RESULTS_DIR = '.cache2'
-        self.raw_data = RawDateHandler(config)
         self.collector = collector
 
         self.data_container: DataContainer = DataContainer()

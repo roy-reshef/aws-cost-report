@@ -4,10 +4,11 @@ from typing import List
 
 import pandas as pd
 
-from costreport.utils import consts
 from costreport.app_config import AppConfig
-from costreport.collection.collector import Collector
 from costreport.collection.aws.cost_client import AwsCostClient
+from costreport.collection.collector import Collector
+from costreport.utils import consts
+from costreport.utils.cache_manager import RawDateCacheManager
 from costreport.utils.date_utils import get_today, get_months_back, get_days_back, get_first_day_next_month
 
 logger = logging.getLogger(__name__)
@@ -18,10 +19,9 @@ class AwsCollector(Collector):
     collector implementation interface
     """
 
-    def __init__(self, config: AppConfig, exec_time: datetime):
-        self.cost_client = AwsCostClient(config)
-        self.config = config
-        self.exec_time = exec_time
+    def __init__(self, config: AppConfig, exec_time: datetime, cache: RawDateCacheManager):
+        super().__init__(config, exec_time, cache)
+        self.cost_client = AwsCostClient(config, cache)
 
     def create_data_frame_from_results(self, cost_results):
         """
