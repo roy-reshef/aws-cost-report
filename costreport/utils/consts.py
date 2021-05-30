@@ -9,10 +9,16 @@ REGION_NAME = environ.get('REGION_NAME', None)
 logging_lvl = environ.get("LOGGING_LEVEL")
 LOGGING_LEVEL = logging_lvl if logging_lvl else 'INFO'
 
-
 # TODO: should make configurable
 OUTPUT_DIR = 'generated-reports'
 CACHE_RESULTS_DIR = '.cache'
+
+
+@unique
+class ReportItemGroup(Enum):
+    ACCOUNT_COST = 'Account Cost'
+    CHARTS = 'charts'
+    TAGS = 'tags'
 
 
 @unique
@@ -30,7 +36,7 @@ class ReportItemName(Enum):
     MONTHLY_TOTAL_COST_MAX = "Monthly Total Cost Max"
     MONTHLY_TOTAL_COST_MEAN = "Monthly Total Cost Mean"
     MONTHLY_TOTAL_COST_TOTAL = "Monthly Total Cost Total"
-    
+
     DAILY_COST = "Daily Cost"
     DAILY_TOTAL_COST = "Daily Total Cost"
     DAILY_TOTAL_COST_MIN = "Daily Total Cost Min"

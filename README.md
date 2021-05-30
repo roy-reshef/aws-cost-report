@@ -93,7 +93,11 @@ each of the configuration properties can be emitted entirely
       "object_name": ""
     }
   },
-  "template_name": "default.html",
+  "reports": {
+    "html": {
+      "template_name": "default.html"
+    }
+  }
   "schedule": "*/5 * * * *",
   "use_cache": true
 }
@@ -106,11 +110,15 @@ each of the configuration properties can be emitted entirely
 * **filtered_costs** - list of costs to exclude from cost reports
 * **resource_tags** - environment tags to create cost report for
 * **destinations** - additional destinations configuration
-* **template_name** - report template file name (see below)
+* **reports** - report implementations. 
 * **schedule** - cron expression for report scheduling (see below)
 * **use_cache** - for development purposes. defaults to false. the latest cached API results will be used
 
-## Report Template
+## HTML Report
+for html report output use 'html' option under 'reports' configuration property (currently the only report implementation)
+and specify template to use. see example above
+
+###Template
 Report is generated from jinja template. alternative templates can be placed in report_templates
 directory and configured in configuration file
 

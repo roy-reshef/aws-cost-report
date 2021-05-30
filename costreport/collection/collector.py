@@ -5,7 +5,6 @@ from typing import List
 import pandas as pd
 
 from costreport.app_config import AppConfig
-from costreport.collection.aws.cost_client import AwsCostClient
 from costreport.utils.cache_manager import RawDateCacheManager
 
 
