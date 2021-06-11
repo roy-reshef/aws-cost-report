@@ -1,7 +1,8 @@
 import json
 import logging
 from abc import ABC
-from enum import Enum
+from enum import Enum, unique
+from typing import List, Dict
 
 MONTHLY_REPORT_MONTHS_BACK_DEFAULT = 6
 SERVICES_REPORT_DAYS_BACK_DEFAULT = 30
@@ -12,6 +13,10 @@ TEMPLATE_NAME_DEFAULT = "default.html"
 REPORT_TITLE_DEFAULT = "AWS Costs Report"
 
 logger = logging.getLogger(__name__)
+
+
+class ConfigurationException(Exception):
+    pass
 
 
 class _PeriodsConfig:
@@ -70,6 +75,22 @@ class S3Destination(_ReportDestination):
         self.object_name = object_name
 
 
+@unique
+class ReportType(Enum):
+    HTML = "html"
+
+
+class Report:
+    def __init__(self, name, report_config: Dict):
+        self.name = name
+        self.report_config = report_config
+
+
+class Reports:
+    def __init__(self, reports: List[Report]):
+        self.reports = reports
+
+
 class AppConfig:
     periods = _PeriodsConfig()
     destinations = {}
@@ -83,14 +104,31 @@ class AppConfig:
         self.filtered_costs = [] if not cfg.get('filtered_costs') else cfg['filtered_costs']
         self.resource_tags = [] if not cfg.get('resource_tags') else cfg['resource_tags']
         self.use_cache = False if not cfg.get('use_cache') else cfg['use_cache']
-        self.template_name = TEMPLATE_NAME_DEFAULT if not cfg.get('template_name') else cfg['template_name']
+        # self.template_name = TEMPLATE_NAME_DEFAULT if not cfg.get('template_name') else cfg['template_name']
         self.schedule = None if not cfg.get('schedule') else cfg['schedule']
+
+        self.reports = self._load_reports_config(cfg.get('reports'))
 
         if cfg.get('periods'):
             self._load_periods_config(cfg['periods'])
 
         if cfg.get('destinations'):
             self._load_destinations(cfg['destinations'])
+
+    @staticmethod
+    def _load_reports_config(reports_cfg):
+        if not reports_cfg:
+            raise ConfigurationException('Missing reports configuration')
+
+        valid_reports = [i.value for i in ReportType]
+
+        reports: List[Report] = []
+        for k, v in reports_cfg.items():
+            if k not in valid_reports:
+                raise ConfigurationException(f'unknown report type:{k}')
+            reports.append(Report(k, v))
+
+        return reports
 
     def _load_periods_config(self, periods_cfg):
         if periods_cfg.get('monthly_report_months_back'):
@@ -109,15 +147,17 @@ class AppConfig:
         if dest_cfg.get(ReportDestination.S3.value):
             bucket_name = dest_cfg[ReportDestination.S3.value].get('bucket_name', None)
             if not bucket_name:
-                raise Exception(f'Report {ReportDestination.S3.value} Destination missing bucket_name property')
+                raise ConfigurationException(
+                    f'Report {ReportDestination.S3.value} Destination missing bucket_name property')
 
             object_name = dest_cfg[ReportDestination.S3.value].get('object_name', None)
             if not object_name:
-                raise Exception(f'Report {ReportDestination.S3.value} Destination missing object_name property')
+                raise ConfigurationException(
+                    f'Report {ReportDestination.S3.value} Destination missing object_name property')
 
             self.destinations[ReportDestination.S3.value] = S3Destination(bucket_name, object_name)
         else:
-            raise Exception(f'Unknown report destination - {dest_cfg}')
+            raise ConfigurationException(f'Unknown report destination - {dest_cfg}')
 
     @staticmethod
     def _load_config():
@@ -129,5 +169,5 @@ class AppConfig:
         except FileNotFoundError:
             logger.info("configuration file was not found. running with defualts")
             return {}
-        except Exception as e:
+        except ConfigurationException as e:
             logger.error(f'error loading configuration file: {str(e)}')

@@ -18,5 +18,10 @@
     "Credit",
     "Refund",
     "Upfront"
-  ]
+  ],
+  "reports": {
+    "html": {
+      "template_name": "default.html"
+    }
+  }
 }

@@ -7,6 +7,8 @@ CONAINER_NAME='reshef_cost_reporter'
 head-sha:
 	echo $(HEAD_SHA)
 
+flake8:
+	@flake8 costreport
 docker-build:
 	docker build -t $(IMAGE_NAME):$(HEAD_SHA) .
 
