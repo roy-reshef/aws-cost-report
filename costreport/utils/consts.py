@@ -10,7 +10,6 @@ logging_lvl = environ.get("LOGGING_LEVEL")
 LOGGING_LEVEL = logging_lvl if logging_lvl else 'INFO'
 
 # TODO: should make configurable
-OUTPUT_DIR = 'generated-reports'
 CACHE_RESULTS_DIR = '.cache'
 
 

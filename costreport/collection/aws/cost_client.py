@@ -8,7 +8,7 @@ import boto3
 
 from costreport.app_config import AppConfig
 from costreport.utils.cache_manager import RawDateCacheManager
-from costreport.utils.consts import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME, OUTPUT_DIR
+from costreport.utils.consts import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, REGION_NAME
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,7 @@ class AwsCostClient:
 
             if self.config.filtered_costs:
                 costs_filter = {"Not": {"Dimensions": {"Key": "RECORD_TYPE", "Values": self.config.filtered_costs}}}
-                cost_filter_file = f'{OUTPUT_DIR}/cost_filter.json'
+                cost_filter_file = 'cost_filter.json'
 
                 with open(cost_filter_file, 'w') as f:
                     json.dump(costs_filter, f)
