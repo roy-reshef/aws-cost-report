@@ -60,6 +60,7 @@ class _PeriodsConfig:
 
 
 class ReportDestination(Enum):
+    LOCAL = 'local'
     S3 = 's3'
 
 
@@ -69,10 +70,16 @@ class _ReportDestination(ABC):
 
 
 class S3Destination(_ReportDestination):
-    def __init__(self, bucket_name, object_name):
+    def __init__(self, bucket_name, object_key_prefix):
         super().__init__(ReportDestination.S3)
         self.bucket_name = bucket_name
-        self.object_name = object_name
+        self.object_key_prefix = object_key_prefix
+
+
+class LocalDestination(_ReportDestination):
+    def __init__(self, directory):
+        super().__init__(ReportDestination.LOCAL)
+        self.directory = directory
 
 
 @unique
@@ -114,6 +121,8 @@ class AppConfig:
 
         if cfg.get('destinations'):
             self._load_destinations(cfg['destinations'])
+        else:
+            raise ConfigurationException('at least one report destination should be configured')
 
     @staticmethod
     def _load_reports_config(reports_cfg):
@@ -144,20 +153,23 @@ class AppConfig:
             self.periods.tags_report_days_back = periods_cfg['tags_report_days_back']
 
     def _load_destinations(self, dest_cfg):
-        if dest_cfg.get(ReportDestination.S3.value):
-            bucket_name = dest_cfg[ReportDestination.S3.value].get('bucket_name', None)
-            if not bucket_name:
-                raise ConfigurationException(
-                    f'Report {ReportDestination.S3.value} Destination missing bucket_name property')
+        for k, v in dest_cfg.items():
+            if k == ReportDestination.LOCAL.value:
+                directory = v.get('directory', None)
+                if not directory:
+                    raise ConfigurationException('local destination is missing destination directory property')
 
-            object_name = dest_cfg[ReportDestination.S3.value].get('object_name', None)
-            if not object_name:
-                raise ConfigurationException(
-                    f'Report {ReportDestination.S3.value} Destination missing object_name property')
+                self.destinations[k] = LocalDestination(directory)
+            elif k == ReportDestination.S3.value:
+                bucket_name = v.get('bucket_name', None)
+                if not bucket_name:
+                    raise ConfigurationException(
+                        f'Report {ReportDestination.S3.value} Destination missing bucket_name property')
 
-            self.destinations[ReportDestination.S3.value] = S3Destination(bucket_name, object_name)
-        else:
-            raise ConfigurationException(f'Unknown report destination - {dest_cfg}')
+                object_key_prefix = v.get('object_key_prefix', None)
+                self.destinations[k] = S3Destination(bucket_name, object_key_prefix)
+            else:
+                raise ConfigurationException(f'Unknown report destination - {dest_cfg}')
 
     @staticmethod
     def _load_config():

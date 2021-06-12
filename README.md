@@ -7,7 +7,7 @@ AWS Costs report tool which leverages AWS cost explorer API to create single pag
 
 ## Features
 * Provides data for every linked account
-* S3 persistence 
+* Local & S3 persistence 
 * Single or scheduled execution
 * Configurable time windows
 * Report data:
@@ -88,9 +88,12 @@ each of the configuration properties can be emitted entirely
     "env"
   ],
   "destinations": {
+    "local": {
+      "directory": "generated-reports"
+    },
     "s3": {
       "bucket_name": "<unique bucket name>",
-      "object_name": ""
+      "object_key_prefix": "prefix"
     }
   },
   "reports": {
@@ -109,7 +112,7 @@ each of the configuration properties can be emitted entirely
 * **filtered_services** - list of services to exclude from services cost report
 * **filtered_costs** - list of costs to exclude from cost reports
 * **resource_tags** - environment tags to create cost report for
-* **destinations** - additional destinations configuration
+* **destinations** - list of report destinations
 * **reports** - report implementations. 
 * **schedule** - cron expression for report scheduling (see below)
 * **use_cache** - for development purposes. defaults to false. the latest cached API results will be used
