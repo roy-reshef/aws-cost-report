@@ -50,6 +50,7 @@ aws credentials environment variables (required):
 * REGION_NAME
 
 * LOGGING_LEVEL - optional. defaults to INFO
+* CONFIGURATION_FILE - optional. path to configuration file. defaults to 'configuration.json'
 
 ## Configuration
 

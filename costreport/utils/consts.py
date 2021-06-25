@@ -6,8 +6,8 @@ AWS_ACCESS_KEY_ID = environ.get('AWS_ACCESS_KEY_ID', None)
 AWS_SECRET_ACCESS_KEY = environ.get('AWS_SECRET_ACCESS_KEY', None)
 REGION_NAME = environ.get('REGION_NAME', None)
 
-logging_lvl = environ.get("LOGGING_LEVEL")
-LOGGING_LEVEL = logging_lvl if logging_lvl else 'INFO'
+LOGGING_LEVEL = environ.get("LOGGING_LEVEL", 'INFO')
+CONFIGURATION_FILE = environ.get("CONFIGURATION_FILE", 'configuration.json')
 
 # TODO: should make configurable
 CACHE_RESULTS_DIR = '.cache'

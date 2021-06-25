@@ -1,2 +1,4 @@
+-r requirements.txt
+
 gittyleaks==0.0.31
 flake8==3.8.4
