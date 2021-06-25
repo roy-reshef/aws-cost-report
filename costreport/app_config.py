@@ -4,6 +4,8 @@ from abc import ABC
 from enum import Enum, unique
 from typing import List, Dict
 
+from costreport.utils.consts import CONFIGURATION_FILE
+
 MONTHLY_REPORT_MONTHS_BACK_DEFAULT = 6
 SERVICES_REPORT_DAYS_BACK_DEFAULT = 30
 DAILY_REPORT_DAYS_BACK_DEFAULT = 30
@@ -173,8 +175,9 @@ class AppConfig:
 
     @staticmethod
     def _load_config():
+        logger.info(f'loading configuration from {CONFIGURATION_FILE}')
         try:
-            with open('configuration.json', 'r') as c:
+            with open(CONFIGURATION_FILE, 'r') as c:
                 configuration = c.read()
 
             return json.loads(configuration)
